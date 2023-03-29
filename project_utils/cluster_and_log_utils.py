@@ -4,7 +4,6 @@ from typing import List
 
 
 def split_cluster_acc_v1(y_true, y_pred, mask):
-
     """
     Evaluate clustering metrics on two subsets of data, as defined by the mask 'mask'
     (Mask usually corresponding to `Old' and `New' classes in GCD setting)
@@ -32,7 +31,8 @@ def split_cluster_acc_v2(y_true, y_pred, mask):
     First compute linear assignment on all data, then look at how good the accuracy is on subsets
 
     # Arguments
-        mask: Which instances come from old classes (True) and which ones come from new classes (False)
+        mask: Which instances come from old classes (True) 
+        and which ones come from new classes (False)
         y: true labels, numpy.array with shape `(n_samples,)`
         y_pred: predicted labels, numpy.array with shape `(n_samples,)`
 
@@ -78,9 +78,10 @@ EVAL_FUNCS = {
     'v2': split_cluster_acc_v2,
 }
 
-def log_accs_from_preds(y_true, y_pred, mask, eval_funcs: List[str], save_name: str, T: int=None, writer: SummaryWriter=None,
-                        print_output=False):
 
+def log_accs_from_preds(y_true, y_pred, mask, eval_funcs: List[str],
+                        save_name: str, T: int = None, writer: SummaryWriter = None,
+                        print_output=False):
     """
     Given a list of evaluation functions to use (e.g ['v1', 'v2']) evaluate and log ACC results
 
@@ -113,7 +114,8 @@ def log_accs_from_preds(y_true, y_pred, mask, eval_funcs: List[str], save_name: 
             to_return = (all_acc, old_acc, new_acc)
 
         if print_output:
-            print_str = f'Epoch {T}, {log_name}: All {all_acc:.4f} | Old {old_acc:.4f} | New {new_acc:.4f}'
+            print_str = (f'Epoch {T}, {log_name}: All {all_acc:.4f}'
+                         f' | Old {old_acc:.4f} | New {new_acc:.4f}')
             print(print_str)
 
     return to_return

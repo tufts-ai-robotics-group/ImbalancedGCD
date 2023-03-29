@@ -3,7 +3,6 @@ import os
 
 from torch.utils.data import DataLoader
 import numpy as np
-from sklearn.cluster import KMeans
 import torch
 from project_utils.cluster_utils import str2bool
 from project_utils.general_utils import seed_torch
@@ -22,9 +21,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def test_kmeans_semi_sup(merge_test_loader, args, K=None):
-
     """
-    In this case, the test loader needs to have the labelled and unlabelled subsets of the training data
+    In this case, the test loader needs to have the labelled
+    and unlabelled subsets of the training data
     """
 
     if K is None:
@@ -46,7 +45,7 @@ def test_kmeans_semi_sup(merge_test_loader, args, K=None):
         all_feats.append(feats.cpu().numpy())
         targets = np.append(targets, label.cpu().numpy())
         mask_cls = np.append(mask_cls, np.array([True if x.item() in range(len(args.train_classes))
-                                         else False for x in label]))
+                                                 else False for x in label]))
         mask_lab = np.append(mask_lab, mask_lab_.cpu().bool().numpy())
 
     # -----------------------
@@ -63,8 +62,9 @@ def test_kmeans_semi_sup(merge_test_loader, args, K=None):
     u_targets = targets[~mask_lab]       # Get unlabelled targets
 
     print('Fitting Semi-Supervised K-Means...')
-    kmeans = SemiSupKMeans(k=K, tolerance=1e-4, max_iterations=args.max_kmeans_iter, init='k-means++',
-                           n_init=args.k_means_init, random_state=None, n_jobs=None, pairwise_batch_size=1024, mode=None)
+    kmeans = SemiSupKMeans(k=K, tolerance=1e-4, max_iterations=args.max_kmeans_iter,
+                           init='k-means++', n_init=args.k_means_init,
+                           random_state=None, n_jobs=None, pairwise_batch_size=1024, mode=None)
 
     l_feats, u_feats, l_targets, u_targets = (torch.from_numpy(x).to(device) for
                                               x in (l_feats, u_feats, l_targets, u_targets))
@@ -86,8 +86,10 @@ def test_kmeans_semi_sup(merge_test_loader, args, K=None):
     # -----------------------
     # EVALUATE
     # -----------------------
-    all_acc, old_acc, new_acc = log_accs_from_preds(y_true=u_targets, y_pred=preds, mask=mask, eval_funcs=args.eval_funcs,
-                                                    save_name='SS-K-Means Train ACC Unlabelled', print_output=True)
+    all_acc, old_acc, new_acc = log_accs_from_preds(y_true=u_targets, y_pred=preds,
+                                                    mask=mask, eval_funcs=args.eval_funcs,
+                                                    save_name='SS-K-Means Train ACC Unlabelled',
+                                                    print_output=True)
 
     return all_acc, old_acc, new_acc, kmeans
 
@@ -95,8 +97,8 @@ def test_kmeans_semi_sup(merge_test_loader, args, K=None):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-            description='cluster',
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        description='cluster',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--num_workers', default=8, type=int)
     parser.add_argument('--K', default=None, type=int, help='Set manually to run with custom K')
@@ -107,10 +109,13 @@ if __name__ == "__main__":
     parser.add_argument('--semi_sup', type=str2bool, default=True)
     parser.add_argument('--max_kmeans_iter', type=int, default=10)
     parser.add_argument('--k_means_init', type=int, default=10)
-    parser.add_argument('--model_name', type=str, default='vit_dino', help='Format is {model_name}_{pretrain}')
-    parser.add_argument('--dataset_name', type=str, default='aircraft', help='options: cifar10, cifar100, scars')
+    parser.add_argument('--model_name', type=str, default='vit_dino',
+                        help='Format is {model_name}_{pretrain}')
+    parser.add_argument('--dataset_name', type=str, default='aircraft',
+                        help='options: cifar10, cifar100, scars')
     parser.add_argument('--prop_train_labels', type=float, default=0.5)
-    parser.add_argument('--eval_funcs', nargs='+', help='Which eval functions to use', default=['v1', 'v2'])
+    parser.add_argument('--eval_funcs', nargs='+',
+                        help='Which eval functions to use', default=['v1', 'v2'])
     parser.add_argument('--use_ssb_splits', type=str2bool, default=True)
 
     # ----------------------
@@ -148,26 +153,33 @@ if __name__ == "__main__":
     # --------------------
     print('Building datasets...')
     train_transform, test_transform = None, None
-    train_dataset, test_dataset, unlabelled_train_examples_test, datasets = get_datasets(args.dataset_name,
-                                                                             train_transform, test_transform, args)
+    train_dataset, \
+        test_dataset, \
+        unlabelled_train_examples_test, \
+        datasets = get_datasets(args.dataset_name, train_transform, test_transform, args)
 
     # Set target transforms:
     target_transform_dict = {}
     for i, cls in enumerate(list(args.train_classes) + list(args.unlabeled_classes)):
         target_transform_dict[cls] = i
-    target_transform = lambda x: target_transform_dict[x]
+
+    def target_transform(x): return target_transform_dict[x]
 
     # Convert to feature vector dataset
-    test_dataset = FeatureVectorDataset(base_dataset=test_dataset, feature_root=os.path.join(args.save_dir, 'test'))
-    unlabelled_train_examples_test = FeatureVectorDataset(base_dataset=unlabelled_train_examples_test,
-                                                          feature_root=os.path.join(args.save_dir, 'train'))
-    train_dataset = FeatureVectorDataset(base_dataset=train_dataset, feature_root=os.path.join(args.save_dir, 'train'))
+    test_dataset = FeatureVectorDataset(
+        base_dataset=test_dataset, feature_root=os.path.join(args.save_dir, 'test'))
+    unlabelled_train_examples_test = FeatureVectorDataset(
+        base_dataset=unlabelled_train_examples_test,
+        feature_root=os.path.join(args.save_dir, 'train'))
+    train_dataset = FeatureVectorDataset(
+        base_dataset=train_dataset, feature_root=os.path.join(args.save_dir, 'train'))
     train_dataset.target_transform = target_transform
 
-    unlabelled_train_loader = DataLoader(unlabelled_train_examples_test, num_workers=args.num_workers,
-                                        batch_size=args.batch_size, shuffle=False)
+    unlabelled_train_loader = DataLoader(unlabelled_train_examples_test,
+                                         num_workers=args.num_workers,
+                                         batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, num_workers=args.num_workers,
-                                      batch_size=args.batch_size, shuffle=False)
+                             batch_size=args.batch_size, shuffle=False)
     train_loader = DataLoader(train_dataset, num_workers=args.num_workers,
                               batch_size=args.batch_size, shuffle=False)
 

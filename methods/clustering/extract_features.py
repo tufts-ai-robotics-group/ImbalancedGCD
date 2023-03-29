@@ -1,8 +1,5 @@
 import torch
 from torch.utils.data import DataLoader
-import timm
-from torchvision import transforms
-import torchvision
 
 import argparse
 import os
@@ -17,10 +14,11 @@ from data.data_utils import MergedDataset
 from data.cub import CustomCub2011, cub_root
 from data.fgvc_aircraft import FGVCAircraft, aircraft_root
 
-from project_utils.general_utils import strip_state_dict, str2bool
+from project_utils.general_utils import str2bool
 from copy import deepcopy
 
 from config import feature_extract_dir, dino_pretrain_path
+
 
 def extract_features_dino(model, loader, save_dir):
 
@@ -56,7 +54,8 @@ def extract_features_timm(model, loader, save_dir):
             images, labels, idxs = batch[:3]
             images = images.to(device)
 
-            features = model.forward_features(images)         # CLS_Token for ViT, Average pooled vector for R50
+            # CLS_Token for ViT, Average pooled vector for R50
+            features = model.forward_features(images)
 
             # Save features
             for f, t, uq in zip(features, labels, idxs):
@@ -71,16 +70,18 @@ def extract_features_timm(model, loader, save_dir):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-            description='cluster',
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        description='cluster',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--num_workers', default=8, type=int)
     parser.add_argument('--root_dir', type=str, default=feature_extract_dir)
     parser.add_argument('--warmup_model_dir', type=str,
                         default=None)
     parser.add_argument('--use_best_model', type=str2bool, default=True)
-    parser.add_argument('--model_name', type=str, default='vit_dino', help='Format is {model_name}_{pretrain}')
-    parser.add_argument('--dataset', type=str, default='aircraft', help='options: cifar10, cifar100, scars')
+    parser.add_argument('--model_name', type=str, default='vit_dino',
+                        help='Format is {model_name}_{pretrain}')
+    parser.add_argument('--dataset', type=str, default='aircraft',
+                        help='options: cifar10, cifar100, scars')
 
     # ----------------------
     # INIT
@@ -172,13 +173,14 @@ if __name__ == "__main__":
                                            transform=val_transform)
 
         test_dataset = HerbariumDataset19(root=os.path.join(herbarium_dataroot, 'small-validation'),
-                                           transform=val_transform)
+                                          transform=val_transform)
 
         targets = list(set(train_dataset.targets))
 
     elif args.dataset == 'imagenet_100':
 
-        datasets = get_imagenet_100_datasets(train_transform=val_transform, test_transform=val_transform,
+        datasets = get_imagenet_100_datasets(train_transform=val_transform,
+                                             test_transform=val_transform,
                                              train_classes=range(50),
                                              prop_train_labels=0.5)
 
@@ -211,8 +213,10 @@ if __name__ == "__main__":
     # ----------------------
     # DATALOADER
     # ----------------------
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
+                              shuffle=False, num_workers=args.num_workers)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size,
+                             shuffle=False, num_workers=args.num_workers)
 
     print('Creating base directories...')
     # ----------------------

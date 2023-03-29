@@ -1,6 +1,6 @@
 import torch
 import math
-from torch.optim.lr_scheduler import _LRScheduler
+
 
 def get_scheduler(optimizer, args):
 
@@ -14,29 +14,39 @@ def get_scheduler(optimizer, args):
 
     elif args.scheduler == 'cosine':
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                               T_max=args.epochs, eta_min=args.lr * 1e-3)
+                                                               T_max=args.epochs,
+                                                               eta_min=args.lr * 1e-3)
 
     elif args.scheduler == 'cosine_warm_restarts':
 
-        try: num_restarts = args.num_restarts
-        except: print('Warning: Num restarts not specified...using 2'); num_restarts = 2
+        try:
+            num_restarts = args.num_restarts
+        except:
+            print('Warning: Num restarts not specified...using 2')
+            num_restarts = 2
 
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,
-                                                                         T_0=int(args.epochs / (num_restarts + 1)),
-                                                                         eta_min=args.lr * 1e-3)
+        scheduler = torch.optim.lr_scheduler. \
+            CosineAnnealingWarmRestarts(optimizer,
+                                        T_0=int(
+                                            args.epochs / (num_restarts + 1)),
+                                        eta_min=args.lr * 1e-3)
 
     elif args.scheduler == 'cosine_warm_restarts_warmup':
 
-        try: num_restarts = args.num_restarts
-        except: print('Warning: Num restarts not specified...using 2'); num_restarts = 2
+        try:
+            num_restarts = args.num_restarts
+        except:
+            print('Warning: Num restarts not specified...using 2')
+            num_restarts = 2
 
         scheduler = CosineAnnealingWarmupRestarts_New(warmup_epochs=10, optimizer=optimizer,
-                                                                        T_0=int(args.epochs / (num_restarts + 1)),
-                                                                         eta_min=args.lr * 1e-3)
+                                                      T_0=int(args.epochs / (num_restarts + 1)),
+                                                      eta_min=args.lr * 1e-3)
 
     elif args.scheduler == 'warm_restarts_plateau':
-        scheduler = WarmRestartPlateau(T_restart=120, optimizer=optimizer, threshold_mode='abs', threshold=0.5,
-                                                               mode='min', patience=100)
+        scheduler = WarmRestartPlateau(T_restart=120, optimizer=optimizer,
+                                       threshold_mode='abs', threshold=0.5,
+                                       mode='min', patience=100)
 
     elif args.scheduler == 'multi_step':
 
@@ -46,7 +56,8 @@ def get_scheduler(optimizer, args):
 
         except:
 
-            print('Warning: No step list for Multi-Step Scheduler, using constant step of 30 epochs')
+            print(('Warning: No step list for Multi-Step Scheduler,'
+                   'using constant step of 30 epochs'))
             steps = [30 * i for i in range(1, 5)]
 
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=steps)
@@ -96,7 +107,9 @@ class CosineAnnealingWarmupRestarts_New(torch.optim.lr_scheduler.CosineAnnealing
         self.warmup_epochs = warmup_epochs
 
         # Get target LR after warmup is complete
-        target_lr = self.eta_min + (self.base_lrs[0] - self.eta_min) * (1 + math.cos(math.pi * warmup_epochs / self.T_i)) / 2
+        target_lr = self.eta_min + \
+            (self.base_lrs[0] - self.eta_min) * \
+            (1 + math.cos(math.pi * warmup_epochs / self.T_i)) / 2
 
         # Linearly interpolate between minimum lr and target_lr
         linear_step = (target_lr - self.eta_min) / self.warmup_epochs

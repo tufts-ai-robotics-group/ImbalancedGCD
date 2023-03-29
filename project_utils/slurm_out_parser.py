@@ -32,7 +32,8 @@ def get_file(path):
     return file
 
 
-def parse_out_file(path, rx_dict, root_dir=save_root_dir, save_name='test.pkl', save=True, verbose=True):
+def parse_out_file(path, rx_dict, root_dir=save_root_dir,
+                   save_name='test.pkl', save=True, verbose=True):
 
     file = get_file(path=path)
     for i, line in enumerate(file):
@@ -76,7 +77,6 @@ def parse_out_file(path, rx_dict, root_dir=save_root_dir, save_name='test.pkl', 
 
             break
 
-
     data = pd.DataFrame([model])
 
     if verbose:
@@ -92,7 +92,8 @@ def parse_out_file(path, rx_dict, root_dir=save_root_dir, save_name='test.pkl', 
         return data
 
 
-def parse_multiple_files(all_paths, rx_dict, root_dir=save_root_dir, save_name='test.pkl', verbose=True, save=False):
+def parse_multiple_files(all_paths, rx_dict, root_dir=save_root_dir,
+                         save_name='test.pkl', verbose=True, save=False):
 
     all_data = []
     for path in all_paths:

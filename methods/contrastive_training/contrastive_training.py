@@ -1,15 +1,14 @@
 import argparse
-import os
 
 from torch.utils.data import DataLoader
 import numpy as np
 from sklearn.cluster import KMeans
 import torch
 from torch.optim import SGD, lr_scheduler
-from project_utils.cluster_utils import mixed_eval, AverageMeter
+from project_utils.cluster_utils import AverageMeter
 from models import vision_transformer as vits
 
-from project_utils.general_utils import init_experiment, get_mean_lr, str2bool, get_dino_head_weights
+from project_utils.general_utils import init_experiment, get_mean_lr, str2bool
 
 from data.augmentations import get_transform
 from data.get_datasets import get_datasets, get_class_splits
@@ -30,6 +29,7 @@ class SupConLoss(torch.nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
     It also supports the unsupervised contrastive loss in SimCLR
     From: https://github.com/HobbitLong/SupContrast"""
+
     def __init__(self, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07):
         super(SupConLoss, self).__init__()
@@ -165,14 +165,15 @@ def info_nce_logits(features, args):
 
 def train(projection_head, model, train_loader, test_loader, unlabelled_train_loader, args):
 
-    optimizer = SGD(list(projection_head.parameters()) + list(model.parameters()), lr=args.lr, momentum=args.momentum,
+    optimizer = SGD(list(projection_head.parameters()) + list(model.parameters()), lr=args.lr,
+                    momentum=args.momentum,
                     weight_decay=args.weight_decay)
 
     exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(
-            optimizer,
-            T_max=args.epochs,
-            eta_min=args.lr * 1e-3,
-        )
+        optimizer,
+        T_max=args.epochs,
+        eta_min=args.lr * 1e-3,
+    )
 
     sup_con_crit = SupConLoss()
     best_test_acc_lab = 0
@@ -234,10 +235,9 @@ def train(projection_head, model, train_loader, test_loader, unlabelled_train_lo
             loss.backward()
             optimizer.step()
 
-
-        print('Train Epoch: {} Avg Loss: {:.4f} | Seen Class Acc: {:.4f} '.format(epoch, loss_record.avg,
-                                                                                  train_acc_record.avg))
-
+        print(f'Train Epoch: {epoch}'
+              f'Avg Loss: {loss_record.avg:.4f}'
+              f' | Seen Class Acc: {train_acc_record.avg:.4f}')
 
         with torch.no_grad():
 
@@ -248,7 +248,8 @@ def train(projection_head, model, train_loader, test_loader, unlabelled_train_lo
 
             print('Testing on disjoint test set...')
             all_acc_test, old_acc_test, new_acc_test = test_kmeans(model, test_loader,
-                                                                   epoch=epoch, save_name='Test ACC',
+                                                                   epoch=epoch,
+                                                                   save_name='Test ACC',
                                                                    args=args)
 
         # ----------------
@@ -260,8 +261,9 @@ def train(projection_head, model, train_loader, test_loader, unlabelled_train_lo
 
         print('Train Accuracies: All {:.4f} | Old {:.4f} | New {:.4f}'.format(all_acc, old_acc,
                                                                               new_acc))
-        print('Test Accuracies: All {:.4f} | Old {:.4f} | New {:.4f}'.format(all_acc_test, old_acc_test,
-                                                                                new_acc_test))
+        print('Test Accuracies: All {:.4f} | Old {:.4f} | New {:.4f}'.format(all_acc_test,
+                                                                             old_acc_test,
+                                                                             new_acc_test))
 
         # Step schedule
         exp_lr_scheduler.step()
@@ -275,14 +277,16 @@ def train(projection_head, model, train_loader, test_loader, unlabelled_train_lo
         if old_acc_test > best_test_acc_lab:
 
             print(f'Best ACC on old Classes on disjoint test set: {old_acc_test:.4f}...')
-            print('Best Train Accuracies: All {:.4f} | Old {:.4f} | New {:.4f}'.format(all_acc, old_acc,
-                                                                                  new_acc))
+            print('Best Train Accuracies: All {:.4f} | Old {:.4f} | New {:.4f}'.format(all_acc,
+                                                                                       old_acc,
+                                                                                       new_acc))
 
-            torch.save(model.state_dict(), args.model_path[:-3] + f'_best.pt')
-            print("model saved to {}.".format(args.model_path[:-3] + f'_best.pt'))
+            torch.save(model.state_dict(), args.model_path[:-3] + '_best.pt')
+            print("model saved to {}.".format(args.model_path[:-3] + '_best.pt'))
 
-            torch.save(projection_head.state_dict(), args.model_path[:-3] + f'_proj_head_best.pt')
-            print("projection head saved to {}.".format(args.model_path[:-3] + f'_proj_head_best.pt'))
+            torch.save(projection_head.state_dict(), args.model_path[:-3] + '_proj_head_best.pt')
+            print("projection head saved to {}.".format(
+                args.model_path[:-3] + '_proj_head_best.pt'))
 
             best_test_acc_lab = old_acc_test
 
@@ -318,7 +322,8 @@ def test_kmeans(model, test_loader,
     # -----------------------
     print('Fitting K-Means...')
     all_feats = np.concatenate(all_feats)
-    kmeans = KMeans(n_clusters=args.num_labeled_classes + args.num_unlabeled_classes, random_state=0).fit(all_feats)
+    kmeans = KMeans(n_clusters=args.num_labeled_classes +
+                    args.num_unlabeled_classes, random_state=0).fit(all_feats)
     preds = kmeans.labels_
     print('Done!')
 
@@ -326,7 +331,8 @@ def test_kmeans(model, test_loader,
     # EVALUATE
     # -----------------------
     all_acc, old_acc, new_acc = log_accs_from_preds(y_true=targets, y_pred=preds, mask=mask,
-                                                    T=epoch, eval_funcs=args.eval_funcs, save_name=save_name,
+                                                    T=epoch, eval_funcs=args.eval_funcs,
+                                                    save_name=save_name,
                                                     writer=args.writer)
 
     return all_acc, old_acc, new_acc
@@ -335,15 +341,18 @@ def test_kmeans(model, test_loader,
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-            description='cluster',
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        description='cluster',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--num_workers', default=16, type=int)
-    parser.add_argument('--eval_funcs', nargs='+', help='Which eval functions to use', default=['v1', 'v2'])
+    parser.add_argument('--eval_funcs', nargs='+',
+                        help='Which eval functions to use', default=['v1', 'v2'])
 
     parser.add_argument('--warmup_model_dir', type=str, default=None)
-    parser.add_argument('--model_name', type=str, default='vit_dino', help='Format is {model_name}_{pretrain}')
-    parser.add_argument('--dataset_name', type=str, default='scars', help='options: cifar10, cifar100, scars')
+    parser.add_argument('--model_name', type=str, default='vit_dino',
+                        help='Format is {model_name}_{pretrain}')
+    parser.add_argument('--dataset_name', type=str, default='scars',
+                        help='options: cifar10, cifar100, scars')
     parser.add_argument('--prop_train_labels', type=float, default=0.5)
     parser.add_argument('--use_ssb_splits', type=str2bool, default=False)
 
@@ -423,17 +432,18 @@ if __name__ == "__main__":
     # --------------------
     # CONTRASTIVE TRANSFORM
     # --------------------
-    train_transform, test_transform = get_transform(args.transform, image_size=args.image_size, args=args)
-    train_transform = ContrastiveLearningViewGenerator(base_transform=train_transform, n_views=args.n_views)
+    train_transform, test_transform = get_transform(
+        args.transform, image_size=args.image_size, args=args)
+    train_transform = ContrastiveLearningViewGenerator(
+        base_transform=train_transform, n_views=args.n_views)
 
     # --------------------
     # DATASETS
     # --------------------
-    train_dataset, test_dataset, unlabelled_train_examples_test, datasets = get_datasets(args.dataset_name,
-                                                                                         train_transform,
-                                                                                         test_transform,
-                                                                                         args)
-
+    train_dataset, \
+        test_dataset, \
+        unlabelled_train_examples_test, \
+        datasets = get_datasets(args.dataset_name, train_transform, test_transform, args)
 
     # --------------------
     # SAMPLER
@@ -441,17 +451,21 @@ if __name__ == "__main__":
     # --------------------
     label_len = len(train_dataset.labelled_dataset)
     unlabelled_len = len(train_dataset.unlabelled_dataset)
-    sample_weights = [1 if i < label_len else label_len / unlabelled_len for i in range(len(train_dataset))]
+    sample_weights = [1 if i < label_len else label_len /
+                      unlabelled_len for i in range(len(train_dataset))]
     sample_weights = torch.DoubleTensor(sample_weights)
     sampler = torch.utils.data.WeightedRandomSampler(sample_weights, num_samples=len(train_dataset))
 
     # --------------------
     # DATALOADERS
     # --------------------
-    train_loader = DataLoader(train_dataset, num_workers=args.num_workers, batch_size=args.batch_size, shuffle=False,
+    train_loader = DataLoader(train_dataset, num_workers=args.num_workers,
+                              batch_size=args.batch_size, shuffle=False,
                               sampler=sampler, drop_last=True)
-    test_loader_unlabelled = DataLoader(unlabelled_train_examples_test, num_workers=args.num_workers,
-                                        batch_size=args.batch_size, shuffle=False)
+    test_loader_unlabelled = DataLoader(unlabelled_train_examples_test,
+                                        num_workers=args.num_workers,
+                                        batch_size=args.batch_size,
+                                        shuffle=False)
     test_loader_labelled = DataLoader(test_dataset, num_workers=args.num_workers,
                                       batch_size=args.batch_size, shuffle=False)
 
@@ -459,7 +473,8 @@ if __name__ == "__main__":
     # PROJECTION HEAD
     # ----------------------
     projection_head = vits.__dict__['DINOHead'](in_dim=args.feat_dim,
-                               out_dim=args.mlp_out_dim, nlayers=args.num_mlp_layers)
+                                                out_dim=args.mlp_out_dim,
+                                                nlayers=args.num_mlp_layers)
     projection_head.to(device)
 
     # ----------------------

@@ -3,14 +3,17 @@ import torch
 import random
 import numpy as np
 import inspect
+import argparse
 
 from torch.utils.tensorboard import SummaryWriter
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 from datetime import datetime
 
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -36,13 +39,12 @@ def seed_torch(seed=1029):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed) # if you are using multi-GPU.
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
 
 def strip_state_dict(state_dict, strip_key='module.'):
-
     """
     Strip 'module' from start of state_dict keys
     Useful if model has been trained as DataParallel model
@@ -57,9 +59,9 @@ def strip_state_dict(state_dict, strip_key='module.'):
 
 
 def get_dino_head_weights(pretrain_path):
-
     """
-    :param pretrain_path: Path to full DINO pretrained checkpoint as in https://github.com/facebookresearch/dino
+    :param pretrain_path: Path to full DINO pretrained checkpoint as in
+    https://github.com/facebookresearch/dino
      'full_ckpt'
     :return: weights only for the projection head
     """
@@ -80,7 +82,8 @@ def get_dino_head_weights(pretrain_path):
             weight_norm_state_dict[k.split('.')[2]] = v
 
     linear_shape = weight_norm_state_dict['weight'].shape
-    dummy_linear = torch.nn.Linear(in_features=linear_shape[1], out_features=linear_shape[0], bias=False)
+    dummy_linear = torch.nn.Linear(
+        in_features=linear_shape[1], out_features=linear_shape[0], bias=False)
     dummy_linear.load_state_dict(weight_norm_state_dict)
     dummy_linear = torch.nn.utils.weight_norm(dummy_linear)
 
@@ -90,8 +93,8 @@ def get_dino_head_weights(pretrain_path):
 
     return head_state_dict
 
-def transform_moco_state_dict(obj, num_classes):
 
+def transform_moco_state_dict(obj, num_classes):
     """
     :param obj: Moco State Dict
     :param args: argsparse object with training classes
@@ -126,7 +129,8 @@ def init_experiment(args, runner_name=None, exp_id=None):
 
     # Get filepath of calling script
     if runner_name is None:
-        runner_name = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split(".")[-2:]
+        runner_name = os.path.dirname(os.path.abspath(
+            inspect.getfile(inspect.currentframe()))).split(".")[-2:]
 
     root_dir = os.path.join(args.exp_root, *runner_name)
 
@@ -137,13 +141,15 @@ def init_experiment(args, runner_name=None, exp_id=None):
     if exp_id is None:
 
         # Unique identifier for experiment
-        now = '({:02d}.{:02d}.{}_|_'.format(datetime.now().day, datetime.now().month, datetime.now().year) + \
-              datetime.now().strftime("%S.%f")[:-3] + ')'
+        now = (f'({datetime.now().day:02d}.{datetime.now().month:02d}.{datetime.now().year}_|_'
+               f'(datetime.now().strftime("%S.%f")[:-3])'
+               ')')
 
         log_dir = os.path.join(root_dir, 'log', now)
         while os.path.exists(log_dir):
-            now = '({:02d}.{:02d}.{}_|_'.format(datetime.now().day, datetime.now().month, datetime.now().year) + \
-                  datetime.now().strftime("%S.%f")[:-3] + ')'
+            now = (f'({datetime.now().day:02d}.{datetime.now().month:02d}.{datetime.now().year}_|_'
+                   f'(datetime.now().strftime("%S.%f")[:-3])'
+                   ')')
 
             log_dir = os.path.join(root_dir, 'log', now)
 
@@ -272,16 +278,17 @@ class ClassificationPredSaver(object):
 
         topk = [1, 5, 10]
         topk = [k for k in topk if k < self.all_preds.shape[-1]]
-        acc = accuracy(torch.from_numpy(self.all_preds), torch.from_numpy(self.all_labels), topk=topk)
+        acc = accuracy(torch.from_numpy(self.all_preds),
+                       torch.from_numpy(self.all_labels), topk=topk)
 
         for k, a in zip(topk, acc):
             print(f'Top{k} Acc: {a.item()}')
 
 
 def get_acc_auroc_curves(logdir):
-
     """
-    :param logdir: Path to logs: E.g '/work/sagar/open_set_recognition/methods/ARPL/log/(12.03.2021_|_32.570)/'
+    :param logdir: Path to logs: 
+    E.g '/work/sagar/open_set_recognition/methods/ARPL/log/(12.03.2021_|_32.570)/'
     :return:
     """
 
@@ -298,7 +305,8 @@ def get_acc_auroc_curves(logdir):
 
 
 def get_mean_lr(optimizer):
-    return torch.mean(torch.Tensor([param_group['lr'] for param_group in optimizer.param_groups])).item()
+    return torch.mean(torch.Tensor([param_group['lr']
+                                    for param_group in optimizer.param_groups])).item()
 
 
 class IndicatePlateau(object):

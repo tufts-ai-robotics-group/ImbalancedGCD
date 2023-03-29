@@ -10,7 +10,6 @@ from data.data_utils import MergedDataset
 class FeatureVectorDataset(Dataset):
 
     def __init__(self, base_dataset, feature_root):
-
         """
         Dataset loads feature vectors instead of images
         :param base_dataset: Dataset from which images would come
@@ -61,7 +60,6 @@ class FeatureVectorDataset(Dataset):
                 label = self.target_transform(label)
 
             return feature_vector, label, uq_idx
-
 
     def __len__(self):
         return len(self.base_dataset)

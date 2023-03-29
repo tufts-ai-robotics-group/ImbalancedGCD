@@ -22,10 +22,11 @@ from functools import partial
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-def test_kmeans(K, merge_test_loader, args=None, verbose=False):
 
+def test_kmeans(K, merge_test_loader, args=None, verbose=False):
     """
-    In this case, the test loader needs to have the labelled and unlabelled subsets of the training data
+    In this case, the test loader needs to have the labelled 
+    and unlabelled subsets of the training data
     """
 
     if K is None:
@@ -67,33 +68,38 @@ def test_kmeans(K, merge_test_loader, args=None, verbose=False):
     # -----------------------
     mask = mask_lab
 
-
-    labelled_acc, labelled_nmi, labelled_ari = cluster_acc(targets.astype(int)[mask], preds.astype(int)[mask]), \
-                                               nmi_score(targets[mask], preds[mask]), \
-                                               ari_score(targets[mask], preds[mask])
+    labelled_acc, \
+        labelled_nmi, \
+        labelled_ari = cluster_acc(targets.astype(int)[mask], preds.astype(int)[mask]), \
+        nmi_score(targets[mask], preds[mask]), \
+        ari_score(targets[mask], preds[mask])
 
     unlabelled_acc, unlabelled_nmi, unlabelled_ari = cluster_acc(targets.astype(int)[~mask],
                                                                  preds.astype(int)[~mask]), \
-                                                     nmi_score(targets[~mask], preds[~mask]), \
-                                                     ari_score(targets[~mask], preds[~mask])
+        nmi_score(targets[~mask], preds[~mask]), \
+        ari_score(targets[~mask], preds[~mask])
 
     if verbose:
         print('K')
-        print('Labelled Instances acc {:.4f}, nmi {:.4f}, ari {:.4f}'.format(labelled_acc, labelled_nmi,
+        print('Labelled Instances acc {:.4f}, nmi {:.4f}, ari {:.4f}'.format(labelled_acc,
+                                                                             labelled_nmi,
                                                                              labelled_ari))
-        print('Unlabelled Instances acc {:.4f}, nmi {:.4f}, ari {:.4f}'.format(unlabelled_acc, unlabelled_nmi,
+        print('Unlabelled Instances acc {:.4f}, nmi {:.4f}, ari {:.4f}'.format(unlabelled_acc,
+                                                                               unlabelled_nmi,
                                                                                unlabelled_ari))
 
     # labelled_acc = DUMMY_ACCS[K - 1].item()
 
     return labelled_acc
-    # return (labelled_acc, labelled_nmi, labelled_ari), (unlabelled_acc, unlabelled_nmi, unlabelled_ari), mask.astype(float).mean()
+    # return (labelled_acc, labelled_nmi, labelled_ari), \
+    # (unlabelled_acc, unlabelled_nmi, unlabelled_ari), \
+    # mask.astype(float).mean()
 
 
 def test_kmeans_for_scipy(K, merge_test_loader, args=None, verbose=False):
-
     """
-    In this case, the test loader needs to have the labelled and unlabelled subsets of the training data
+    In this case, the test loader needs to have the labelled
+    and unlabelled subsets of the training data
     """
 
     K = int(K)
@@ -134,20 +140,23 @@ def test_kmeans_for_scipy(K, merge_test_loader, args=None, verbose=False):
     # -----------------------
     mask = mask_lab
 
-
-    labelled_acc, labelled_nmi, labelled_ari = cluster_acc(targets.astype(int)[mask], preds.astype(int)[mask]), \
-                                               nmi_score(targets[mask], preds[mask]), \
-                                               ari_score(targets[mask], preds[mask])
+    labelled_acc, \
+        labelled_nmi, \
+        labelled_ari = cluster_acc(targets.astype(int)[mask], preds.astype(int)[mask]), \
+        nmi_score(targets[mask], preds[mask]), \
+        ari_score(targets[mask], preds[mask])
 
     unlabelled_acc, unlabelled_nmi, unlabelled_ari = cluster_acc(targets.astype(int)[~mask],
                                                                  preds.astype(int)[~mask]), \
-                                                     nmi_score(targets[~mask], preds[~mask]), \
-                                                     ari_score(targets[~mask], preds[~mask])
+        nmi_score(targets[~mask], preds[~mask]), \
+        ari_score(targets[~mask], preds[~mask])
 
     print(f'K = {K}')
-    print('Labelled Instances acc {:.4f}, nmi {:.4f}, ari {:.4f}'.format(labelled_acc, labelled_nmi,
+    print('Labelled Instances acc {:.4f}, nmi {:.4f}, ari {:.4f}'.format(labelled_acc,
+                                                                         labelled_nmi,
                                                                          labelled_ari))
-    print('Unlabelled Instances acc {:.4f}, nmi {:.4f}, ari {:.4f}'.format(unlabelled_acc, unlabelled_nmi,
+    print('Unlabelled Instances acc {:.4f}, nmi {:.4f}, ari {:.4f}'.format(unlabelled_acc,
+                                                                           unlabelled_nmi,
                                                                            unlabelled_ari))
 
     return -labelled_acc
@@ -167,7 +176,11 @@ def binary_search(merge_test_loader, args):
     labelled_acc_small = test_kmeans(small_k, merge_test_loader, args)
     labelled_acc_middle = test_kmeans(middle_k, merge_test_loader, args)
 
-    print(f'Iter 0: BigK {big_k}, Acc {labelled_acc_big:.4f} | MiddleK {middle_k}, Acc {labelled_acc_middle:.4f} | SmallK {small_k}, Acc {labelled_acc_small:.4f} ')
+    print((f'Iter 0: BigK {big_k},'
+           f'Acc {labelled_acc_big:.4f}' 
+           f'| MiddleK {middle_k},'
+           f' Acc {labelled_acc_middle:.4f} |'
+           f' SmallK {small_k}, Acc {labelled_acc_small:.4f} '))
     all_accs = [labelled_acc_small, labelled_acc_middle, labelled_acc_big]
     best_acc_so_far = np.max(all_accs)
     best_acc_at_k = np.array([small_k, middle_k, big_k])[np.argmax(all_accs)]
@@ -195,7 +208,9 @@ def binary_search(merge_test_loader, args):
 
         labelled_acc_middle = test_kmeans(middle_k, merge_test_loader, args)
 
-        print(f'Iter {i}: BigK {big_k}, Acc {labelled_acc_big:.4f} | MiddleK {middle_k}, Acc {labelled_acc_middle:.4f} | SmallK {small_k}, Acc {labelled_acc_small:.4f} ')
+        print((f'Iter {i}: BigK {big_k}, Acc {labelled_acc_big:.4f}'
+               f' | MiddleK {middle_k}, Acc {labelled_acc_middle:.4f}'
+               f' | SmallK {small_k}, Acc {labelled_acc_small:.4f} '))
         all_accs = [labelled_acc_small, labelled_acc_middle, labelled_acc_big]
         best_acc_so_far = np.max(all_accs)
         best_acc_at_k = np.array([small_k, middle_k, big_k])[np.argmax(all_accs)]
@@ -207,8 +222,10 @@ def scipy_optimise(merge_test_loader, args):
     small_k = args.num_labeled_classes
     big_k = args.max_classes
 
-    test_k_means_partial = partial(test_kmeans_for_scipy, merge_test_loader=merge_test_loader, args=args, verbose=True)
-    res = minimize_scalar(test_k_means_partial, bounds=(small_k, big_k), method='bounded', options={'disp': True})
+    test_k_means_partial = partial(
+        test_kmeans_for_scipy, merge_test_loader=merge_test_loader, args=args, verbose=True)
+    res = minimize_scalar(test_k_means_partial, bounds=(small_k, big_k),
+                          method='bounded', options={'disp': True})
     print(f'Optimal K is {res.x}')
 
 
@@ -222,9 +239,12 @@ if __name__ == "__main__":
     parser.add_argument('--max_classes', default=1000, type=int)
     parser.add_argument('--root_dir', type=str, default=feature_extract_dir)
     parser.add_argument('--warmup_model_exp_id', type=str, default=None)
-    parser.add_argument('--model_name', type=str, default='vit_dino', help='Format is {model_name}_{pretrain}')
-    parser.add_argument('--search_mode', type=str, default='brent', help='Mode for black box optimisation')
-    parser.add_argument('--dataset_name', type=str, default='cifar10', help='options: cifar10, cifar100, scars')
+    parser.add_argument('--model_name', type=str, default='vit_dino',
+                        help='Format is {model_name}_{pretrain}')
+    parser.add_argument('--search_mode', type=str, default='brent',
+                        help='Mode for black box optimisation')
+    parser.add_argument('--dataset_name', type=str, default='cifar10',
+                        help='options: cifar10, cifar100, scars')
     parser.add_argument('--prop_train_labels', type=float, default=0.5)
 
     # ----------------------
@@ -255,19 +275,25 @@ if __name__ == "__main__":
     # --------------------
     print('Building datasets...')
     train_transform, test_transform = None, None
-    train_dataset, test_dataset, unlabelled_train_examples_test, datasets = get_datasets(args.dataset_name,
-                                                                                         train_transform, test_transform, args)
+    train_dataset, \
+        test_dataset, \
+        unlabelled_train_examples_test, \
+        datasets = get_datasets(args.dataset_name, train_transform, test_transform, args)
 
     # Convert to feature vector dataset
-    test_dataset = FeatureVectorDataset(base_dataset=test_dataset, feature_root=os.path.join(args.save_dir, 'test'))
-    unlabelled_train_examples_test = FeatureVectorDataset(base_dataset=unlabelled_train_examples_test,
-                                                          feature_root=os.path.join(args.save_dir, 'train'))
-    train_dataset = FeatureVectorDataset(base_dataset=train_dataset, feature_root=os.path.join(args.save_dir, 'train'))
+    test_dataset = FeatureVectorDataset(
+        base_dataset=test_dataset, feature_root=os.path.join(args.save_dir, 'test'))
+    unlabelled_train_examples_test = FeatureVectorDataset(
+                                            base_dataset=unlabelled_train_examples_test,
+                                            feature_root=os.path.join(args.save_dir, 'train'))
+    train_dataset = FeatureVectorDataset(
+        base_dataset=train_dataset, feature_root=os.path.join(args.save_dir, 'train'))
 
     # --------------------
     # DATALOADERS
     # --------------------
-    unlabelled_train_loader = DataLoader(unlabelled_train_examples_test, num_workers=args.num_workers,
+    unlabelled_train_loader = DataLoader(unlabelled_train_examples_test,
+                                         num_workers=args.num_workers,
                                          batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, num_workers=args.num_workers,
                              batch_size=args.batch_size, shuffle=False)
