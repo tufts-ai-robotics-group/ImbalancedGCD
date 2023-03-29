@@ -1,0 +1,4 @@
+[submodule "submodules/GCDdatasets"]
+	path = submodules/GCDdatasets
+	url = https://github.com/tufts-ai-robotics-group/GCDdatasets
+	branch = imbalanced_dataset
