@@ -9,7 +9,7 @@ from project_utils.general_utils import seed_torch
 from project_utils.cluster_and_log_utils import log_accs_from_preds
 
 from methods.clustering.feature_vector_dataset import FeatureVectorDataset
-from data.get_datasets import get_datasets, get_class_splits
+from gcd_data.get_datasets import get_datasets, get_class_splits
 from methods.clustering.faster_mix_k_means_pytorch import K_Means as SemiSupKMeans
 
 from tqdm import tqdm

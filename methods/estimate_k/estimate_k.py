@@ -25,7 +25,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def test_kmeans(K, merge_test_loader, args=None, verbose=False):
     """
-    In this case, the test loader needs to have the labelled 
+    In this case, the test loader needs to have the labelled
     and unlabelled subsets of the training data
     """
 
@@ -177,7 +177,7 @@ def binary_search(merge_test_loader, args):
     labelled_acc_middle = test_kmeans(middle_k, merge_test_loader, args)
 
     print((f'Iter 0: BigK {big_k},'
-           f'Acc {labelled_acc_big:.4f}' 
+           f'Acc {labelled_acc_big:.4f}'
            f'| MiddleK {middle_k},'
            f' Acc {labelled_acc_middle:.4f} |'
            f' SmallK {small_k}, Acc {labelled_acc_small:.4f} '))
@@ -190,7 +190,7 @@ def binary_search(merge_test_loader, args):
 
         if labelled_acc_big > labelled_acc_small:
 
-            best_acc = max(labelled_acc_middle, labelled_acc_big)
+            # best_acc = max(labelled_acc_middle, labelled_acc_big)
 
             small_k = middle_k
             labelled_acc_small = labelled_acc_middle
@@ -199,7 +199,7 @@ def binary_search(merge_test_loader, args):
 
         else:
 
-            best_acc = max(labelled_acc_middle, labelled_acc_small)
+            # best_acc = max(labelled_acc_middle, labelled_acc_small)
             big_k = middle_k
 
             diff = big_k - small_k
@@ -284,8 +284,8 @@ if __name__ == "__main__":
     test_dataset = FeatureVectorDataset(
         base_dataset=test_dataset, feature_root=os.path.join(args.save_dir, 'test'))
     unlabelled_train_examples_test = FeatureVectorDataset(
-                                            base_dataset=unlabelled_train_examples_test,
-                                            feature_root=os.path.join(args.save_dir, 'train'))
+        base_dataset=unlabelled_train_examples_test,
+        feature_root=os.path.join(args.save_dir, 'train'))
     train_dataset = FeatureVectorDataset(
         base_dataset=train_dataset, feature_root=os.path.join(args.save_dir, 'train'))
 

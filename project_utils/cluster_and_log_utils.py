@@ -31,7 +31,7 @@ def split_cluster_acc_v2(y_true, y_pred, mask):
     First compute linear assignment on all data, then look at how good the accuracy is on subsets
 
     # Arguments
-        mask: Which instances come from old classes (True) 
+        mask: Which instances come from old classes (True)
         and which ones come from new classes (False)
         y: true labels, numpy.array with shape `(n_samples,)`
         y_pred: predicted labels, numpy.array with shape `(n_samples,)`

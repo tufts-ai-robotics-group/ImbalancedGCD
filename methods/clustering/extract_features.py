@@ -5,17 +5,17 @@ import argparse
 import os
 from tqdm import tqdm
 
-from data.stanford_cars import CarsDataset
-from data.cifar import CustomCIFAR10, CustomCIFAR100, cifar_10_root, cifar_100_root
-from data.herbarium_19 import HerbariumDataset19, herbarium_dataroot
+from gcd_data.stanford_cars import CarsDataset
+from gcd_data.cifar import CustomCIFAR10, CustomCIFAR100, cifar_10_root, cifar_100_root
+from gcd_data.herbarium_19 import HerbariumDataset19, herbarium_dataroot
 from data.augmentations import get_transform
-from data.imagenet import get_imagenet_100_datasets
-from data.data_utils import MergedDataset
-from data.cub import CustomCub2011, cub_root
-from data.fgvc_aircraft import FGVCAircraft, aircraft_root
+# from data.imagenet import get_imagenet_100_datasets
+# from gcd_data.data_utils import MergedDataset
+from gcd_data.cub import CustomCub2011, cub_root
+from gcd_data.fgvc_aircraft import FGVCAircraft, aircraft_root
 
 from project_utils.general_utils import str2bool
-from copy import deepcopy
+# from copy import deepcopy
 
 from config import feature_extract_dir, dino_pretrain_path
 
@@ -177,21 +177,21 @@ if __name__ == "__main__":
 
         targets = list(set(train_dataset.targets))
 
-    elif args.dataset == 'imagenet_100':
+    # elif args.dataset == 'imagenet_100':
 
-        datasets = get_imagenet_100_datasets(train_transform=val_transform,
-                                             test_transform=val_transform,
-                                             train_classes=range(50),
-                                             prop_train_labels=0.5)
+    #     datasets = get_imagenet_100_datasets(train_transform=val_transform,
+    #                                          test_transform=val_transform,
+    #                                          train_classes=range(50),
+    #                                          prop_train_labels=0.5)
 
-        datasets['train_labelled'].target_transform = None
-        datasets['train_unlabelled'].target_transform = None
+    #     datasets['train_labelled'].target_transform = None
+    #     datasets['train_unlabelled'].target_transform = None
 
-        train_dataset = MergedDataset(labelled_dataset=deepcopy(datasets['train_labelled']),
-                                      unlabelled_dataset=deepcopy(datasets['train_unlabelled']))
+    #     train_dataset = MergedDataset(labelled_dataset=deepcopy(datasets['train_labelled']),
+    #                                   unlabelled_dataset=deepcopy(datasets['train_unlabelled']))
 
-        test_dataset = datasets['test']
-        targets = list(set(test_dataset.targets))
+    #     test_dataset = datasets['test']
+    #     targets = list(set(test_dataset.targets))
 
     elif args.dataset == 'cub':
 

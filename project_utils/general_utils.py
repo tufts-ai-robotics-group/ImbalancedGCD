@@ -105,7 +105,7 @@ def transform_moco_state_dict(obj, num_classes):
     for k, v in obj.items():
         if not k.startswith("module.encoder_q."):
             continue
-        old_k = k
+        # old_k = k
         k = k.replace("module.encoder_q.", "")
 
         if k.startswith("fc.2"):
@@ -141,14 +141,14 @@ def init_experiment(args, runner_name=None, exp_id=None):
     if exp_id is None:
 
         # Unique identifier for experiment
-        now = (f'({datetime.now().day:02d}.{datetime.now().month:02d}.{datetime.now().year}_|_'
-               f'(datetime.now().strftime("%S.%f")[:-3])'
+        now = (f'({datetime.now().day:02d}.{datetime.now().month:02d}.{datetime.now().year}__'
+               f'{datetime.now().strftime("%S.%f")[:-3]}'
                ')')
 
         log_dir = os.path.join(root_dir, 'log', now)
         while os.path.exists(log_dir):
-            now = (f'({datetime.now().day:02d}.{datetime.now().month:02d}.{datetime.now().year}_|_'
-                   f'(datetime.now().strftime("%S.%f")[:-3])'
+            now = (f'({datetime.now().day:02d}.{datetime.now().month:02d}.{datetime.now().year}__'
+                   f'{datetime.now().strftime("%S.%f")[:-3]}'
                    ')')
 
             log_dir = os.path.join(root_dir, 'log', now)
@@ -287,7 +287,7 @@ class ClassificationPredSaver(object):
 
 def get_acc_auroc_curves(logdir):
     """
-    :param logdir: Path to logs: 
+    :param logdir: Path to logs:
     E.g '/work/sagar/open_set_recognition/methods/ARPL/log/(12.03.2021_|_32.570)/'
     :return:
     """

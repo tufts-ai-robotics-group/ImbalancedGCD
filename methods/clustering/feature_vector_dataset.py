@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 import os
 from copy import deepcopy
 
-from data.data_utils import MergedDataset
+from gcd_data.data_utils import MergedDataset
 
 
 class FeatureVectorDataset(Dataset):

@@ -17,11 +17,11 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        self.head1 = nn.Linear(512*block.expansion, num_labeled_classes)
-        self.head2 = nn.Linear(512*block.expansion, num_unlabeled_classes)
+        self.head1 = nn.Linear(512 * block.expansion, num_labeled_classes)
+        self.head2 = nn.Linear(512 * block.expansion, num_unlabeled_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
+        strides = [stride] + [1] * (num_blocks - 1)
         layers = []
         for stride in strides:
             layers.append(block(self.in_planes, planes, stride))
@@ -54,9 +54,9 @@ class BasicBlock(nn.Module):
         self.bn2 = nn.BatchNorm2d(planes)
         self.shortcut = nn.Sequential()
         self.is_padding = 0
-        if stride != 1 or in_planes != self.expansion*planes:
+        if stride != 1 or in_planes != self.expansion * planes:
             self.shortcut = nn.AvgPool2d(2)
-            if in_planes != self.expansion*planes:
+            if in_planes != self.expansion * planes:
                 self.is_padding = 1
 
     def forward(self, x):

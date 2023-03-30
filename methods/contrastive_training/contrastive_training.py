@@ -11,7 +11,7 @@ from models import vision_transformer as vits
 from project_utils.general_utils import init_experiment, get_mean_lr, str2bool
 
 from data.augmentations import get_transform
-from data.get_datasets import get_datasets, get_class_splits
+from gcd_data.get_datasets import get_datasets, get_class_splits
 
 from tqdm import tqdm
 
@@ -163,7 +163,7 @@ def info_nce_logits(features, args):
     return logits, labels
 
 
-def train(projection_head, model, train_loader, test_loader, unlabelled_train_loader, args):
+def train(projection_head, model, train_loader, test_loader, unlabeled_train_loader, args):
 
     optimizer = SGD(list(projection_head.parameters()) + list(model.parameters()), lr=args.lr,
                     momentum=args.momentum,
@@ -205,7 +205,7 @@ def train(projection_head, model, train_loader, test_loader, unlabelled_train_lo
 
             # Choose which instances to run the contrastive loss on
             if args.contrast_unlabel_only:
-                # Contrastive loss only on unlabelled instances
+                # Contrastive loss only on unlabeled instances
                 f1, f2 = [f[~mask_lab] for f in features.chunk(2)]
                 con_feats = torch.cat([f1, f2], dim=0)
             else:
@@ -241,9 +241,9 @@ def train(projection_head, model, train_loader, test_loader, unlabelled_train_lo
 
         with torch.no_grad():
 
-            print('Testing on unlabelled examples in the training data...')
-            all_acc, old_acc, new_acc = test_kmeans(model, unlabelled_train_loader,
-                                                    epoch=epoch, save_name='Train ACC Unlabelled',
+            print('Testing on unlabeled examples in the training data...')
+            all_acc, old_acc, new_acc = test_kmeans(model, unlabeled_train_loader,
+                                                    epoch=epoch, save_name='Train ACC Unlabeled',
                                                     args=args)
 
             print('Testing on disjoint test set...')
@@ -256,7 +256,7 @@ def train(projection_head, model, train_loader, test_loader, unlabelled_train_lo
         # LOG
         # ----------------
         args.writer.add_scalar('Loss', loss_record.avg, epoch)
-        args.writer.add_scalar('Train Acc Labelled Data', train_acc_record.avg, epoch)
+        args.writer.add_scalar('Train Acc labeled Data', train_acc_record.avg, epoch)
         args.writer.add_scalar('LR', get_mean_lr(optimizer), epoch)
 
         print('Train Accuracies: All {:.4f} | Old {:.4f} | New {:.4f}'.format(all_acc, old_acc,
@@ -322,8 +322,8 @@ def test_kmeans(model, test_loader,
     # -----------------------
     print('Fitting K-Means...')
     all_feats = np.concatenate(all_feats)
-    kmeans = KMeans(n_clusters=args.num_labeled_classes +
-                    args.num_unlabeled_classes, random_state=0).fit(all_feats)
+    kmeans = KMeans(n_clusters=args.num_labeled_classes + args.num_unlabeled_classes,
+                    random_state=0).fit(all_feats)
     preds = kmeans.labels_
     print('Done!')
 
@@ -397,7 +397,8 @@ if __name__ == "__main__":
 
         model = vits.__dict__['vit_base']()
 
-        state_dict = torch.load(pretrain_path, map_location='cpu')
+        # state_dict = torch.load(pretrain_path, map_location='cpu')
+        state_dict = torch.hub.load('facebookresearch/dino:main', 'dino_vitb16')
         model.load_state_dict(state_dict)
 
         if args.warmup_model_dir is not None:
@@ -442,17 +443,17 @@ if __name__ == "__main__":
     # --------------------
     train_dataset, \
         test_dataset, \
-        unlabelled_train_examples_test, \
+        unlabeled_train_examples_test, \
         datasets = get_datasets(args.dataset_name, train_transform, test_transform, args)
 
     # --------------------
     # SAMPLER
-    # Sampler which balances labelled and unlabelled examples in each batch
+    # Sampler which balances labeled and unlabeled examples in each batch
     # --------------------
-    label_len = len(train_dataset.labelled_dataset)
-    unlabelled_len = len(train_dataset.unlabelled_dataset)
-    sample_weights = [1 if i < label_len else label_len /
-                      unlabelled_len for i in range(len(train_dataset))]
+    label_len = len(train_dataset.labeled_dataset)
+    unlabeled_len = len(train_dataset.unlabeled_dataset)
+    sample_weights = [1 if i < label_len else label_len / unlabeled_len
+                      for i in range(len(train_dataset))]
     sample_weights = torch.DoubleTensor(sample_weights)
     sampler = torch.utils.data.WeightedRandomSampler(sample_weights, num_samples=len(train_dataset))
 
@@ -462,11 +463,11 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, num_workers=args.num_workers,
                               batch_size=args.batch_size, shuffle=False,
                               sampler=sampler, drop_last=True)
-    test_loader_unlabelled = DataLoader(unlabelled_train_examples_test,
+    test_loader_unlabeled = DataLoader(unlabeled_train_examples_test,
                                         num_workers=args.num_workers,
                                         batch_size=args.batch_size,
                                         shuffle=False)
-    test_loader_labelled = DataLoader(test_dataset, num_workers=args.num_workers,
+    test_loader_labeled = DataLoader(test_dataset, num_workers=args.num_workers,
                                       batch_size=args.batch_size, shuffle=False)
 
     # ----------------------
@@ -480,4 +481,4 @@ if __name__ == "__main__":
     # ----------------------
     # TRAIN
     # ----------------------
-    train(projection_head, model, train_loader, test_loader_labelled, test_loader_unlabelled, args)
+    train(projection_head, model, train_loader, test_loader_labeled, test_loader_unlabeled, args)

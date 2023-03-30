@@ -9,7 +9,7 @@ def pairwise_distance(data1, data2, batch_size=None):
     using broadcast mechanism to calculate pairwise ecludian distance of data
     the input data is N*M matrix, where M is the dimension
     we first expand the N*M matrix into N*1*M matrix A and 1*N*M matrix B
-    then a simple elementwise operation of A and B will handle the pairwise operation of 
+    then a simple elementwise operation of A and B will handle the pairwise operation of
     points represented by data
     '''
     # N*1*M
@@ -19,7 +19,7 @@ def pairwise_distance(data1, data2, batch_size=None):
     B = data2.unsqueeze(dim=0)
 
     if batch_size is None:
-        dis = (A-B)**2
+        dis = (A - B)**2
         # return N*N matrix for pairwise distance
         dis = dis.sum(dim=-1)
         #  torch.cuda.empty_cache()
@@ -27,13 +27,13 @@ def pairwise_distance(data1, data2, batch_size=None):
         i = 0
         dis = torch.zeros(data1.shape[0], data2.shape[0])
         while i < data1.shape[0]:
-            if (i+batch_size < data1.shape[0]):
-                dis_batch = (A[i:i+batch_size]-B)**2
+            if (i + batch_size < data1.shape[0]):
+                dis_batch = (A[i:i + batch_size] - B)**2
                 dis_batch = dis_batch.sum(dim=-1)
-                dis[i:i+batch_size] = dis_batch
-                i = i+batch_size
+                dis[i:i + batch_size] = dis_batch
+                i = i + batch_size
                 #  torch.cuda.empty_cache()
-            elif (i+batch_size >= data1.shape[0]):
+            elif (i + batch_size >= data1.shape[0]):
                 dis_final = (A[i:] - B)**2
                 dis_final = dis_final.sum(dim=-1)
                 dis[i:] = dis_final
@@ -95,12 +95,13 @@ class K_Means:
             dist = pairwise_distance(X, C, self.pairwise_batch_size)
             dist = dist.view(-1, C.shape[0])
             d2, _ = torch.min(dist, dim=1)
-            prob = d2/d2.sum()
+            prob = d2 / d2.sum()
             cum_prob = torch.cumsum(prob, dim=0)
             r = random_state.rand()
 
             if len((cum_prob >= r).nonzero()) == 0:
-                debug = 0
+                # debug = 0
+                pass
             else:
                 ind = (cum_prob >= r).nonzero()[0][0]
             C = torch.cat((C, X[ind].view(1, -1)), dim=0)
@@ -208,7 +209,7 @@ class K_Means:
             center_shift = torch.sum(torch.sqrt(torch.sum((centers - centers_old) ** 2, dim=1)))
 
             if center_shift ** 2 < self.tolerance:
-                # break out of the main loop if the results are optimal, 
+                # break out of the main loop if the results are optimal,
                 # ie. the centers don't change their positions much(more than our tolerance)
                 break
 
@@ -318,7 +319,7 @@ def main():
     print('nmi', nmi_score(pred, y))
 
     # Plotting starts here
-    colors = 10*["g", "c", "b", "k", "r", "m"]
+    colors = 10 * ["g", "c", "b", "k", "r", "m"]
 
     for i in range(len(X)):
         x = X[i]
