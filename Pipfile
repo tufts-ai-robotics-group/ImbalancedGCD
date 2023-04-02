@@ -14,12 +14,9 @@ verify_ssl = true
 name = "pytorch_cu116"
 
 [packages]
+imbalanced_gcd = {editable = true, path = "."}
 gcd_data = {editable = true, path = "./submodules/GCDdatasets"}
 polycraft-nov-data = {editable = true, path = "./submodules/GCDdatasets/submodules/polycraft-novelty-data"}
-packages = "*"
-scikit-learn = "*"
-tensorboard = "*"
-tqdm = "*"
 
 [torch_cpu]
 torch = {index="pytorch_cpu"}
