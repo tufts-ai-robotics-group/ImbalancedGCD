@@ -14,23 +14,22 @@ def dino_norm_trans():
     ])
 
 
-def sim_gcd_train():
+def sim_gcd_train(image_size=IMAGE_SIZE):
     # SimGCD training transform
     # uses random ColorJitter, while original implementation effectively didn't use it
     return transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.Resize(IMAGE_SIZE, interpolation=INTERP),
-        transforms.RandomCrop(IMAGE_SIZE),
+        transforms.Resize(image_size, interpolation=INTERP),
+        transforms.RandomCrop(image_size),
         transforms.RandomHorizontalFlip(),
         transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)], p=0.8),
         dino_norm_trans(),
     ])
 
 
-def sim_gcd_test():
+def sim_gcd_test(image_size=IMAGE_SIZE):
     # SimGCD testing transform
     return transforms.Compose([
-        transforms.Resize(IMAGE_SIZE, interpolation=INTERP),
-        transforms.CenterCrop(IMAGE_SIZE),
+        transforms.Resize(image_size, interpolation=INTERP),
+        transforms.CenterCrop(image_size),
         dino_norm_trans(),
     ])
