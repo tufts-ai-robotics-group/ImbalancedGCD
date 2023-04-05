@@ -5,7 +5,6 @@ import random
 # from sklearn.metrics import roc_auc_score
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
-import torchvision.transforms as T
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -64,7 +63,7 @@ def get_nd_dataloaders(args, transforms=False):
     if transforms:
         train_trans, test_trans = sim_gcd_train(args.image_size), sim_gcd_test(args.image_size)
     else:
-        train_trans, test_trans = T.ToTensor(), T.ToTensor()
+        train_trans, test_trans = sim_gcd_test(args.image_size), sim_gcd_test(args.image_size)
     dataset_dict = get_datasets(args.dataset_name, train_trans, test_trans, args)[-1]
     # add number of labeled and unlabeled classes to args
     args.num_labeled_classes = len(args.train_classes)
@@ -147,7 +146,7 @@ def train_gcd(args):
             cnt = 0
             epoch_loss = 0.
             epoch_acc = 0.
-            for t_batch, batch in tqdm(zip(*dataloaders)):
+            for t_batch, batch in zip(*dataloaders):
                 # forward and loss
                 data, targets, uq_idxs = batch
                 t_data, _, _ = t_batch
