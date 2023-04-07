@@ -8,7 +8,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from gcd_data.get_datasets import get_class_splits, get_datasets
+from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced_datasets
 
 from imbalanced_gcd.model import DinoGCD
 from imbalanced_gcd.augmentation import sim_gcd_train, sim_gcd_test
@@ -26,6 +26,11 @@ def get_args():
         help="options: NovelCraft, cifar10, cifar100, imagenet_100, cub, scars, fgvc_aricraft, " +
              "herbarium_19")
     parser.add_argument('--prop_train_labels', type=float, default=0.5)
+    parser.add_argument('--imbalance_method', type=str, default=None, help='options:linear, step')
+    parser.add_argument('--imbalance_ratio', type=float, default=2)
+    parser.add_argument('--prop_minority_class', type=float, default=0.5)
+    parser.add_argument('--seed', type=int, default=0)
+
     # model label for logging
     parser.add_argument("--label", type=str, default=None)
     # training hyperparameters
@@ -36,6 +41,7 @@ def get_args():
                         help="Learning rate for embedding v(x)")
     parser.add_argument("--lr_c", type=float, default=1e-2,
                         help="Learning rate for linear classifier {w_y, b_y}")
+    parser.add_argument("--num_workers", type=int, default=4)
     # loss hyperparameters
     parser.add_argument("--sup_weight", type=float, default=0.35,
                         help="Supervised loss weight")
@@ -65,7 +71,10 @@ def get_nd_dataloaders(args, transforms=False):
         train_trans, test_trans = sim_gcd_train(args.image_size), sim_gcd_test(args.image_size)
     else:
         train_trans, test_trans = sim_gcd_test(args.image_size), sim_gcd_test(args.image_size)
-    dataset_dict = get_datasets(args.dataset_name, train_trans, test_trans, args)[-1]
+    if args.imbalance_method is None:
+        dataset_dict = get_datasets(args.dataset_name, train_trans, test_trans, args)[-1]
+    else:
+        dataset_dict = get_imbalanced_datasets(args.dataset_name, train_trans, test_trans, args)[-1]
     # add number of labeled and unlabeled classes to args
     args.num_labeled_classes = len(args.train_classes)
     args.num_unlabeled_classes = len(args.unlabeled_classes)
@@ -75,7 +84,7 @@ def get_nd_dataloaders(args, transforms=False):
     generator.manual_seed(0)
     dataloader_kwargs = {
         "batch_size": args.batch_size,
-        "num_workers": 4,
+        "num_workers": args.num_workers,
         "shuffle": True,
         "generator": generator
     }
@@ -152,6 +161,7 @@ def train_gcd(args):
                 # forward and loss
                 data, targets, uq_idxs = batch
                 t_data, _, _ = t_batch
+                exit()
                 data = data.to(device)
                 targets = targets.long().to(device)
                 t_data = t_data.to(device)
