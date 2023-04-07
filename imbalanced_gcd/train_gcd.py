@@ -10,9 +10,10 @@ from torch.utils.tensorboard import SummaryWriter
 
 from gcd_data.get_datasets import get_class_splits, get_datasets
 
-from model import DinoGCD
-from augmentation import sim_gcd_train, sim_gcd_test
-from loss import GCDLoss
+from imbalanced_gcd.model import DinoGCD
+from imbalanced_gcd.augmentation import sim_gcd_train, sim_gcd_test
+from imbalanced_gcd.eval.eval import calc_accuracy
+from imbalanced_gcd.loss import GCDLoss
 
 
 def get_args():
@@ -87,6 +88,7 @@ def get_nd_dataloaders(args, transforms=False):
 def train_gcd(args):
     # choose device
     device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    args.device = device
     # init dataloaders
     t_train_loader, t_valid_loader, \
         t_test_loader, args = get_nd_dataloaders(args, transforms=True)
@@ -174,12 +176,8 @@ def train_gcd(args):
                     optim.step()
                     scheduler.step()
                 # calculate statistics
-                _, preds = torch.max(embeds[norm_mask], 1)
                 epoch_loss = (loss.item() * data.size(0) +
                               cnt * epoch_loss) / (cnt + data.size(0))
-                if len(preds) > 0:
-                    epoch_acc = (torch.sum(preds == targets[norm_mask].data) +
-                                 epoch_acc * cnt).double() / (cnt + len(preds))
                 cnt += data.size(0)
             # get phase label
             if phase == "train":
@@ -190,15 +188,17 @@ def train_gcd(args):
                 phase_label = "Test"
             # output statistics
             writer.add_scalar(f"{phase_label}/Average Loss", epoch_loss, epoch)
-            writer.add_scalar(f"{phase_label}/Average Accuracy", epoch_acc, epoch)
             if phase != "train":
+                # output accuracy
+                epoch_acc = calc_accuracy(model, train_loader, test_loader, args)
+                writer.add_scalar(f"{phase_label}/Accuracy", epoch_acc, epoch)
                 # record end of training stats, grouped as Metrics in Tensorboard
                 if epoch == args.num_epochs - 1:
                     # note non-numeric values (NaN, None, ect.) will cause entry
                     # to not be displayed in Tensorboard HPARAMS tab
                     metric_dict.update({
                         f"Metrics/{phase_label}_loss": epoch_loss,
-                        f"Metrics/{phase_label}_accuracy": epoch_acc,
+                        f"Metrics/{phase_label}_acc": epoch_acc,
                     })
     # record hparams all at once and after all other writer calls
     # to avoid issues with Tensorboard changing output file
