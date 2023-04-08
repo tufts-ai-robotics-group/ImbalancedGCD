@@ -33,3 +33,15 @@ def sim_gcd_test(image_size=IMAGE_SIZE):
         transforms.CenterCrop(image_size),
         dino_norm_trans(),
     ])
+
+
+class gcd_twofold_transform:
+    def __init__(self, image_size=IMAGE_SIZE):
+        self.train_transform = sim_gcd_train(image_size=image_size)
+        self.test_transform = sim_gcd_test(image_size=image_size)
+
+    def __call__(self, img):
+        transformed_out = self.train_transform(img)
+        out = self.test_transform(img)
+
+        return transformed_out, out

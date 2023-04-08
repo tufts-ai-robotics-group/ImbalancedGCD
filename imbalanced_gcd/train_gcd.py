@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced_datasets
 
 from imbalanced_gcd.model import DinoGCD
-from imbalanced_gcd.augmentation import sim_gcd_train, sim_gcd_test
+from imbalanced_gcd.augmentation import sim_gcd_train, sim_gcd_test, gcd_twofold_transform
 from imbalanced_gcd.eval.eval import calc_accuracy
 from imbalanced_gcd.loss import GCDLoss
 
@@ -36,7 +36,7 @@ def get_args():
     # training hyperparameters
     parser.add_argument("--num_epochs", type=int, default=100,
                         help="Number of training epochs")
-    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--lr_e", type=float, default=5e-5,
                         help="Learning rate for embedding v(x)")
     parser.add_argument("--lr_c", type=float, default=1e-2,
@@ -55,8 +55,8 @@ def get_args():
     return args
 
 
-def get_nd_dataloaders(args, transforms=False):
-    """Get novelty detection DataLoaders
+def get_gcd_dataloaders(args, transforms=False):
+    """Get generalized category discovery DataLoaders
     Args:
         args (Namespace): args containing dataset and prop_train_labels
         transforms (bool, optional): Whether to use train and test transforms. Defaults to False.
@@ -67,14 +67,15 @@ def get_nd_dataloaders(args, transforms=False):
             args: args updated with num_labeled_classes and num_unlabeled_classes
     """
     args = get_class_splits(args)
-    if transforms:
-        train_trans, test_trans = sim_gcd_train(args.image_size), sim_gcd_test(args.image_size)
-    else:
-        train_trans, test_trans = sim_gcd_test(args.image_size), sim_gcd_test(args.image_size)
+    test_trans = sim_gcd_test(args.image_size)
+    # if transforms:
+    #     train_trans, test_trans = sim_gcd_train(args.image_size), sim_gcd_test(args.image_size)
+    # else:
+    #     train_trans, test_trans = sim_gcd_test(args.image_size), sim_gcd_test(args.image_size)
     if args.imbalance_method is None:
-        dataset_dict = get_datasets(args.dataset_name, train_trans, test_trans, args)[-1]
+        dataset_dict = get_datasets(args.dataset_name, gcd_twofold_transform(args.image_size), test_trans, args)[-1]
     else:
-        dataset_dict = get_imbalanced_datasets(args.dataset_name, train_trans, test_trans, args)[-1]
+        dataset_dict = get_imbalanced_datasets(args.dataset_name, gcd_twofold_transform(args.image_size), test_trans, args)[-1]
     # add number of labeled and unlabeled classes to args
     args.num_labeled_classes = len(args.train_classes)
     args.num_unlabeled_classes = len(args.unlabeled_classes)
@@ -99,15 +100,15 @@ def train_gcd(args):
     device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     args.device = device
     # init dataloaders
-    t_train_loader, t_valid_loader, \
-        t_test_loader, args = get_nd_dataloaders(args, transforms=True)
+    # t_train_loader, t_valid_loader, \
+    #     t_test_loader, args = get_gcd_dataloaders(args, transforms=True)
     train_loader, valid_loader, \
-        test_loader, _ = get_nd_dataloaders(args, transforms=False)
+        test_loader, _ = get_gcd_dataloaders(args, transforms=False)
 
     # normal classes after target transform according to GCDdatasets API
     normal_classes = torch.arange(args.num_labeled_classes).to(device)
     # init model
-    model = DinoGCD(args.num_labeled_classes).to(device)
+    model = DinoGCD().to(device)
     # init optimizer
     optim = torch.optim.AdamW([
         {
@@ -123,8 +124,8 @@ def train_gcd(args):
     # set learning rate warmup to take 1/4 of training time
     warmup_epochs = max(args.num_epochs // 4, 1)
     # init learning rate scheduler
-    warmup_iters = warmup_epochs * len(t_train_loader)
-    total_iters = args.num_epochs * len(t_train_loader)
+    warmup_iters = warmup_epochs * len(train_loader)
+    total_iters = args.num_epochs * len(train_loader)
     scheduler = lr_scheduler.SequentialLR(
         optim,
         [
@@ -146,22 +147,19 @@ def train_gcd(args):
         for phase in phases:
             if phase == "train":
                 model.train()
-                dataloaders = t_train_loader, train_loader
+                dataloader = train_loader
             elif phase == "valid":
                 model.eval()
-                dataloaders = t_valid_loader, valid_loader
+                dataloader = valid_loader
             else:
                 model.eval()
-                dataloaders = t_test_loader, test_loader
+                dataloader = test_loader
             # vars for tensorboard stats
             cnt = 0
             epoch_loss = 0.
             epoch_acc = 0.
-            for t_batch, batch in zip(*dataloaders):
+            for (t_data, data), targets, uq_idx in dataloader:
                 # forward and loss
-                data, targets, uq_idxs = batch
-                t_data, _, _ = t_batch
-                exit()
                 data = data.to(device)
                 targets = targets.long().to(device)
                 t_data = t_data.to(device)
@@ -188,6 +186,7 @@ def train_gcd(args):
                 # calculate statistics
                 epoch_loss = (loss.item() * data.size(0) +
                               cnt * epoch_loss) / (cnt + data.size(0))
+                # TODO: cache embeddings for later use
                 cnt += data.size(0)
             # get phase label
             if phase == "train":
