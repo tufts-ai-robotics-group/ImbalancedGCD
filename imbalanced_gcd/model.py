@@ -5,7 +5,7 @@ from torch.nn.init import trunc_normal_
 
 
 class DinoGCD(nn.Module):
-    def __init__(self, out_dim, use_bn=False,
+    def __init__(self, out_dim=256, use_bn=False,
                  norm_last_layer=True, nlayers=3, hidden_dim=2048, bottleneck_dim=256) -> None:
         super().__init__()
         self.out_dim = out_dim
@@ -26,12 +26,10 @@ class DinoGCD(nn.Module):
                     layers.append(nn.BatchNorm1d(hidden_dim))
                 layers.append(nn.GELU())
             layers.append(nn.Linear(hidden_dim, bottleneck_dim))
+            # add one more linear layer to match the dimension of the output
+            layers.append(nn.Linear(bottleneck_dim, out_dim))
             self.mlp = nn.Sequential(*layers)
         self.apply(self._init_weights)
-        self.last_layer = nn.utils.weight_norm(nn.Linear(bottleneck_dim, out_dim, bias=False))
-        self.last_layer.weight_g.data.fill_(1)
-        if norm_last_layer:
-            self.last_layer.weight_g.requires_grad = False
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -45,6 +43,4 @@ class DinoGCD(nn.Module):
         embeds = raw_embeds.view(raw_embeds.shape[0], -1)
         # Embeddings after MLP that is used for classification
         embeds = self.mlp(embeds)
-        embeds = nn.functional.normalize(embeds, dim=-1, p=2)
-        embeds = self.last_layer(embeds)
         return embeds
