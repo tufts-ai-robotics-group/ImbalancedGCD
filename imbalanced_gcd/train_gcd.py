@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced_datasets
 
 from imbalanced_gcd.model import DinoGCD
-from imbalanced_gcd.augmentation import sim_gcd_train, sim_gcd_test, gcd_twofold_transform
+from imbalanced_gcd.augmentation import gcd_twofold_transform
 from imbalanced_gcd.eval.eval import calc_accuracy
 from imbalanced_gcd.loss import GCDLoss
 
@@ -55,7 +55,7 @@ def get_args():
     return args
 
 
-def get_gcd_dataloaders(args, transforms=False):
+def get_gcd_dataloaders(args):
     """Get generalized category discovery DataLoaders
     Args:
         args (Namespace): args containing dataset and prop_train_labels
@@ -67,15 +67,16 @@ def get_gcd_dataloaders(args, transforms=False):
             args: args updated with num_labeled_classes and num_unlabeled_classes
     """
     args = get_class_splits(args)
-    test_trans = sim_gcd_test(args.image_size)
-    # if transforms:
-    #     train_trans, test_trans = sim_gcd_train(args.image_size), sim_gcd_test(args.image_size)
-    # else:
-    #     train_trans, test_trans = sim_gcd_test(args.image_size), sim_gcd_test(args.image_size)
     if args.imbalance_method is None:
-        dataset_dict = get_datasets(args.dataset_name, gcd_twofold_transform(args.image_size), test_trans, args)[-1]
+        dataset_dict = get_datasets(args.dataset_name,
+                                    gcd_twofold_transform(args.image_size),
+                                    gcd_twofold_transform(args.image_size),
+                                    args)[-1]
     else:
-        dataset_dict = get_imbalanced_datasets(args.dataset_name, gcd_twofold_transform(args.image_size), test_trans, args)[-1]
+        dataset_dict = get_imbalanced_datasets(args.dataset_name,
+                                               gcd_twofold_transform(args.image_size),
+                                               gcd_twofold_transform(args.image_size),
+                                               args)[-1]
     # add number of labeled and unlabeled classes to args
     args.num_labeled_classes = len(args.train_classes)
     args.num_unlabeled_classes = len(args.unlabeled_classes)
@@ -99,14 +100,11 @@ def train_gcd(args):
     # choose device
     device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     args.device = device
-    # init dataloaders
-    # t_train_loader, t_valid_loader, \
-    #     t_test_loader, args = get_gcd_dataloaders(args, transforms=True)
-    train_loader, valid_loader, \
-        test_loader, _ = get_gcd_dataloaders(args, transforms=False)
+    train_loader, valid_loader, test_loader, _ = get_gcd_dataloaders(args)
 
     # normal classes after target transform according to GCDdatasets API
     normal_classes = torch.arange(args.num_labeled_classes).to(device)
+    args.normal_classes = normal_classes
     # init model
     model = DinoGCD().to(device)
     # init optimizer
@@ -133,7 +131,7 @@ def train_gcd(args):
             lr_scheduler.CosineAnnealingLR(optim, total_iters - warmup_iters)
         ],
         [warmup_iters])
-    phases = ["train", "valid", "test"]
+    phases = ["Train", "Valid", "Test"]
     # init loss
     loss_func = GCDLoss(normal_classes, args.sup_weight)
     # init tensorboard, with random comment to stop overlapping runs
@@ -145,10 +143,10 @@ def train_gcd(args):
     for epoch in tqdm(range(args.num_epochs)):
         # Each epoch has a training, validation, and test phase
         for phase in phases:
-            if phase == "train":
+            if phase == "Train":
                 model.train()
                 dataloader = train_loader
-            elif phase == "valid":
+            elif phase == "Valid":
                 model.eval()
                 dataloader = valid_loader
             else:
@@ -158,56 +156,55 @@ def train_gcd(args):
             cnt = 0
             epoch_loss = 0.
             epoch_acc = 0.
+            # tensors for caching embeddings and targets
+            epoch_embeds = torch.empty((0, model.out_dim)).to(device)
+            epoch_targets = torch.empty((0,), dtype=torch.long).to(device)
+            epoch_t_embeds = torch.empty((0, model.out_dim)).to(device)
             for (t_data, data), targets, uq_idx in dataloader:
                 # forward and loss
                 data = data.to(device)
                 targets = targets.long().to(device)
                 t_data = t_data.to(device)
                 optim.zero_grad()
-                with torch.set_grad_enabled(phase == "train"):
+                with torch.set_grad_enabled(phase == "Train"):
                     embeds = model(data)
-                    if phase == "train":
+                    t_embeds = model(t_data)
+                    if phase == "Train":
                         # all true mask if training
                         norm_mask = torch.ones((data.size(0),), dtype=torch.bool).to(device)
                     else:
                         # filter out novel examples from loss in non-training phases
                         norm_mask = torch.isin(targets, normal_classes).to(device)
-                    t_embeds = model(t_data)
                     # make sure the mask has at least one True
                     if torch.any(norm_mask):
                         loss = loss_func(embeds[norm_mask], t_embeds[norm_mask], targets[norm_mask])
                     else:
                         loss = torch.tensor(0.).to(device)
+                    epoch_embeds = torch.vstack((epoch_embeds, embeds[norm_mask]))
+                    epoch_targets = torch.hstack((epoch_targets, targets[norm_mask]))
+                    epoch_t_embeds = torch.vstack((epoch_t_embeds, t_embeds[norm_mask]))
                 # backward and optimize only if in training phase
-                if phase == "train":
+                if phase == "Train":
                     loss.backward()
                     optim.step()
                     scheduler.step()
                 # calculate statistics
                 epoch_loss = (loss.item() * data.size(0) +
                               cnt * epoch_loss) / (cnt + data.size(0))
-                # TODO: cache embeddings for later use
                 cnt += data.size(0)
-            # get phase label
-            if phase == "train":
-                phase_label = "Train"
-            elif phase == "valid":
-                phase_label = "Valid"
-            else:
-                phase_label = "Test"
             # output statistics
-            writer.add_scalar(f"{phase_label}/Average Loss", epoch_loss, epoch)
-            if phase != "train":
+            writer.add_scalar(f"{phase}/Average Loss", epoch_loss, epoch)
+            if phase != "Train":
                 # output accuracy
-                epoch_acc = calc_accuracy(model, train_loader, test_loader, args)
-                writer.add_scalar(f"{phase_label}/Accuracy", epoch_acc, epoch)
+                epoch_acc = calc_accuracy(model, args, epoch_embeds, epoch_targets, test_loader)
+                writer.add_scalar(f"{phase}/Accuracy", epoch_acc, epoch)
                 # record end of training stats, grouped as Metrics in Tensorboard
                 if epoch == args.num_epochs - 1:
                     # note non-numeric values (NaN, None, ect.) will cause entry
                     # to not be displayed in Tensorboard HPARAMS tab
                     metric_dict.update({
-                        f"Metrics/{phase_label}_loss": epoch_loss,
-                        f"Metrics/{phase_label}_acc": epoch_acc,
+                        f"Metrics/{phase}_loss": epoch_loss,
+                        f"Metrics/{phase}_acc": epoch_acc,
                     })
     # record hparams all at once and after all other writer calls
     # to avoid issues with Tensorboard changing output file
