@@ -159,7 +159,6 @@ def train_gcd(args):
             # tensors for caching embeddings and targets
             epoch_embeds = torch.empty((0, model.out_dim)).to(device)
             epoch_targets = torch.empty((0,), dtype=torch.long).to(device)
-            epoch_t_embeds = torch.empty((0, model.out_dim)).to(device)
             for (t_data, data), targets, uq_idx in dataloader:
                 # forward and loss
                 data = data.to(device)
@@ -182,7 +181,6 @@ def train_gcd(args):
                         loss = torch.tensor(0.).to(device)
                     epoch_embeds = torch.vstack((epoch_embeds, embeds[norm_mask]))
                     epoch_targets = torch.hstack((epoch_targets, targets[norm_mask]))
-                    epoch_t_embeds = torch.vstack((epoch_t_embeds, t_embeds[norm_mask]))
                 # backward and optimize only if in training phase
                 if phase == "Train":
                     loss.backward()
