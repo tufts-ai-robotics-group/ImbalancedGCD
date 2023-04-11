@@ -14,6 +14,7 @@ from imbalanced_gcd.model import DinoGCD
 from imbalanced_gcd.augmentation import gcd_twofold_transform
 from imbalanced_gcd.eval.eval import calc_accuracy
 from imbalanced_gcd.loss import GCDLoss
+from imbalanced_gcd.ss_kmeans import SSKMeans
 
 
 def get_args():
@@ -136,6 +137,12 @@ def train_gcd(args):
     loss_func = GCDLoss(normal_classes, args.sup_weight)
     # init tensorboard, with random comment to stop overlapping runs
     writer = SummaryWriter(args.label, comment=str(random.randint(0, 9999)))
+    # cache labeled training data for SSKM
+    train_labeled_data = torch.empty(0, 3, args.image_size, args.image_size).to(device)
+    train_labeled_targets = torch.empty(0, dtype=torch.long).to(device)
+    for (t_data, data), targets, uq_idx in train_loader:
+        train_labeled_data = torch.vstack((train_labeled_data, data.to(device)))
+        train_labeled_targets = torch.hstack((train_labeled_targets, targets.to(device)))
     # metric dict for recording hparam metrics
     metric_dict = {}
     # model training
@@ -157,8 +164,6 @@ def train_gcd(args):
             epoch_loss = 0.
             epoch_acc = 0.
             # tensors for caching embeddings and targets
-            epoch_embeds = torch.empty((0, model.out_dim)).to(device)
-            epoch_targets = torch.empty((0,), dtype=torch.long).to(device)
             for (t_data, data), targets, uq_idx in dataloader:
                 # forward and loss
                 data = data.to(device)
@@ -179,8 +184,6 @@ def train_gcd(args):
                         loss = loss_func(embeds[norm_mask], t_embeds[norm_mask], targets[norm_mask])
                     else:
                         loss = torch.tensor(0.).to(device)
-                    epoch_embeds = torch.vstack((epoch_embeds, embeds[norm_mask]))
-                    epoch_targets = torch.hstack((epoch_targets, targets[norm_mask]))
                 # backward and optimize only if in training phase
                 if phase == "Train":
                     loss.backward()
@@ -192,10 +195,10 @@ def train_gcd(args):
                 cnt += data.size(0)
             # output statistics
             writer.add_scalar(f"{phase}/Average Loss", epoch_loss, epoch)
+            epoch_embeds = model(train_labeled_data)
+            epoch_acc = calc_accuracy(model, args, epoch_embeds, train_labeled_targets, test_loader)
+            writer.add_scalar(f"{phase}/Accuracy", epoch_acc, epoch)
             if phase != "Train":
-                # output accuracy
-                epoch_acc = calc_accuracy(model, args, epoch_embeds, epoch_targets, test_loader)
-                writer.add_scalar(f"{phase}/Accuracy", epoch_acc, epoch)
                 # record end of training stats, grouped as Metrics in Tensorboard
                 if epoch == args.num_epochs - 1:
                     # note non-numeric values (NaN, None, ect.) will cause entry
