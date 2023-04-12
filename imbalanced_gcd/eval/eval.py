@@ -15,7 +15,7 @@ def calc_accuracy(model, args, epoch_embeds, epoch_targets, dataloader, phase):
     y_true = np.empty((0,))
     # for (t_data, data), targets, uq_idxs in dataloader:
     for batch in dataloader:
-        if phase == 'train':
+        if phase == 'Train':
             (t_data, data), targets, uq_idxs, label_mask = batch
         else:
             (t_data, data), targets, uq_idxs = batch

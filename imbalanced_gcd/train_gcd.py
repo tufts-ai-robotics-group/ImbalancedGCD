@@ -145,12 +145,12 @@ def train_gcd(args):
     train_labeled_targets = torch.empty(0, dtype=torch.long).to(device)
     for (t_data, data), targets, uq_idx, label_mask in train_loader:
         train_labeled_data = torch.vstack((train_labeled_data, data[label_mask].to(device)))
-        train_labeled_targets = torch.hstack((train_labeled_targets, targets[label_mask].to(device)))
+        train_labeled_targets = torch.hstack((train_labeled_targets,
+                                              targets[label_mask].to(device)))
     # metric dict for recording hparam metrics
     metric_dict = {}
     # model training
-    from tqdm import tqdm
-    for epoch in tqdm(range(args.num_epochs)):
+    for epoch in range(args.num_epochs):
         # Each epoch has a training, validation, and test phase
         for phase in phases:
             if phase == "Train":
@@ -175,7 +175,7 @@ def train_gcd(args):
                     (t_data, data), targets, uq_idx, label_mask = batch
                 else:
                     (t_data, data), targets, uq_idx = batch
-                    label_mask = torch.sisin(targets, normal_classes)
+                    label_mask = torch.isin(targets, normal_classes)
                 # forward and loss
                 data = data.to(device)
                 t_data = t_data.to(device)
