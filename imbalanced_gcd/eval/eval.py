@@ -6,19 +6,25 @@ import numpy as np
 
 
 @torch.no_grad()
-def calc_accuracy(model, args, epoch_embeds, epoch_targets, unlabeled_loader):
+def calc_accuracy(model, args, epoch_embeds, epoch_targets, dataloader, phase):
     model.eval()
     # get dataloader
     device = args.device
     # collect unlabeled embeddings and labels
     embeddings = np.empty((0, model.out_dim))
     y_true = np.empty((0,))
-    for (t_data, data), targets, uq_idxs in unlabeled_loader:
+    # for (t_data, data), targets, uq_idxs in dataloader:
+    for batch in dataloader:
+        if phase == 'train':
+            (t_data, data), targets, uq_idxs, label_mask = batch
+        else:
+            (t_data, data), targets, uq_idxs = batch
+            label_mask = torch.zeros_like(targets, dtype=torch.bool)
         data, targets = data.to(device), targets.to(device)
-        outputs = model(data)
+        outputs = model(data[~label_mask])
         data_embeddings = outputs.detach().cpu().numpy()
         embeddings = np.vstack((embeddings, data_embeddings))
-        y_true = np.hstack((y_true, targets.cpu().numpy()))
+        y_true = np.hstack((y_true, targets[~label_mask].cpu().numpy()))
     # apply SS clustering and output results
     # SS KMeans
     epoch_embeds = epoch_embeds.detach().cpu().numpy()
