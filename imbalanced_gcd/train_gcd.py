@@ -104,7 +104,7 @@ def train_gcd(args):
     # choose device
     device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     args.device = device
-    train_loader, valid_loader, test_loader, _ = get_gcd_dataloaders(args)
+    train_loader, valid_loader, test_loader, args = get_gcd_dataloaders(args)
 
     # normal classes after target transform according to GCDdatasets API
     normal_classes = torch.arange(args.num_labeled_classes).to(device)
@@ -140,13 +140,6 @@ def train_gcd(args):
     loss_func = GCDLoss(normal_classes, args.sup_weight)
     # init tensorboard, with random comment to stop overlapping runs
     writer = SummaryWriter(args.label, comment=str(random.randint(0, 9999)))
-    # cache labeled training data for SSKM
-    train_labeled_data = torch.empty(0, 3, args.image_size, args.image_size).to(device)
-    train_labeled_targets = torch.empty(0, dtype=torch.long).to(device)
-    for (t_data, data), targets, uq_idx, label_mask in train_loader:
-        train_labeled_data = torch.vstack((train_labeled_data, data[label_mask].to(device)))
-        train_labeled_targets = torch.hstack((train_labeled_targets,
-                                              targets[label_mask].to(device)))
     # metric dict for recording hparam metrics
     metric_dict = {}
     # model training
@@ -186,19 +179,15 @@ def train_gcd(args):
                 with torch.set_grad_enabled(phase == "Train"):
                     embeds = model(data)
                     t_embeds = model(t_data)
-                    # make sure the mask has at least one True
-                    if torch.any(label_mask):
-                        loss = loss_func(embeds[label_mask], t_embeds[label_mask],
-                                         targets[label_mask])
-                    else:
-                        loss = torch.tensor(0., requires_grad=True).to(device)
+                    loss = loss_func(embeds[label_mask], t_embeds[label_mask],
+                                     targets[label_mask])
                 # backward and optimize only if in training phase
                 if phase == "Train":
                     loss.backward()
                     optim.step()
                     scheduler.step()
-                    epoch_embeds = torch.vstack((epoch_embeds, embeds[label_mask]))
-                    epoch_targets = torch.hstack((epoch_targets, targets[label_mask]))
+                epoch_embeds = torch.vstack((epoch_embeds, embeds[label_mask]))
+                epoch_targets = torch.hstack((epoch_targets, targets[label_mask]))
                 # calculate statistics
                 epoch_loss = (loss.item() * data.size(0) +
                               cnt * epoch_loss) / (cnt + data.size(0))
@@ -206,8 +195,9 @@ def train_gcd(args):
             # output statistics
             writer.add_scalar(f"{phase}/Average Loss", epoch_loss, epoch)
             if phase != "Train":
-                epoch_acc = calc_accuracy(model, args, model(train_labeled_data),
-                                          train_labeled_targets, dataloader, phase)
+                print(f"{phase} Loss: {epoch_loss:.4f}")
+                epoch_acc = calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets)
+                writer.add_scalar(f"{phase}/Accuracy", epoch_acc, epoch)
                 # record end of training stats, grouped as Metrics in Tensorboard
                 if epoch == args.num_epochs - 1:
                     # note non-numeric values (NaN, None, ect.) will cause entry
@@ -216,10 +206,6 @@ def train_gcd(args):
                         f"Metrics/{phase}_loss": epoch_loss,
                         f"Metrics/{phase}_acc": epoch_acc,
                     })
-            else:
-                epoch_acc = calc_accuracy(model, args, epoch_embeds,
-                                          epoch_targets, dataloader, phase)
-            writer.add_scalar(f"{phase}/Accuracy", epoch_acc, epoch)
     # record hparams all at once and after all other writer calls
     # to avoid issues with Tensorboard changing output file
     writer.add_hparams({

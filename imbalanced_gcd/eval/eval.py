@@ -2,40 +2,33 @@ from imbalanced_gcd.ss_kmeans import SSKMeans
 import imbalanced_gcd.eval.stats as stats
 
 import torch
-import numpy as np
 
 
 @torch.no_grad()
-def calc_accuracy(model, args, epoch_embeds, epoch_targets, dataloader, phase):
+def calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets):
     model.eval()
-    # get dataloader
     device = args.device
-    # collect unlabeled embeddings and labels
-    embeddings = np.empty((0, model.out_dim))
-    y_true = np.empty((0,))
-    # for (t_data, data), targets, uq_idxs in dataloader:
-    for batch in dataloader:
-        if phase == 'Train':
-            (t_data, data), targets, uq_idxs, label_mask = batch
-        else:
-            (t_data, data), targets, uq_idxs = batch
-            label_mask = torch.zeros_like(targets, dtype=torch.bool)
-        data, targets = data.to(device), targets.to(device)
-        outputs = model(data[~label_mask])
-        data_embeddings = outputs.detach().cpu().numpy()
-        embeddings = np.vstack((embeddings, data_embeddings))
-        y_true = np.hstack((y_true, targets[~label_mask].cpu().numpy()))
-    # apply SS clustering and output results
-    # SS KMeans
+    # collect labeled embeddings and labels in train_loader for SS clustering
+    train_labeled_embed = torch.empty(0, model.out_dim).to(device)
+    train_labeled_targets = torch.empty(0, dtype=torch.long).to(device)
+    for (t_data, data), targets, uq_idx, label_mask in train_loader:
+        if torch.any(label_mask):
+            embeds = model(data[label_mask].to(device))
+            train_labeled_embed = torch.vstack((train_labeled_embed, embeds))
+            train_labeled_targets = torch.hstack((train_labeled_targets,
+                                                  targets[label_mask].to(device)))
+    train_labeled_embed = train_labeled_embed.detach().cpu().numpy()
+    train_labeled_targets = train_labeled_targets.detach().cpu().numpy()
     epoch_embeds = epoch_embeds.detach().cpu().numpy()
     epoch_targets = epoch_targets.detach().cpu().numpy()
-    embeddings = embeddings.astype(epoch_embeds.dtype)
-    ss_est = SSKMeans(epoch_embeds, epoch_targets,
+    # apply SS clustering and output results
+    # SS KMeans
+    ss_est = SSKMeans(train_labeled_embed, train_labeled_targets,
                       (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
-        embeddings)
-    y_pred = ss_est.predict(embeddings)
+        epoch_embeds)
+    y_pred = ss_est.predict(epoch_embeds)
     # calculate accuracy
-    row_ind, col_ind, weight = stats.assign_clusters(y_pred, y_true)
+    row_ind, col_ind, weight = stats.assign_clusters(y_pred, epoch_targets)
     acc = stats.cluster_acc(row_ind, col_ind, weight)
 
     return acc

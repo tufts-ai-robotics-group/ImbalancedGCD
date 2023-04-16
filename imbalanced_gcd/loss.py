@@ -11,11 +11,15 @@ class GCDLoss(nn.Module):
         self.sup_temp = .1
 
     def forward(self, embeds, t_embeds, targets):
-        # select labeled images according to the class reordering of base_dataset
-        norm_mask = targets < self.num_norm_targets
-        unsup_loss = self.unsup_contrast_loss(embeds, t_embeds)
-        sup_loss = self.sup_contrast_loss(embeds[norm_mask], targets[norm_mask])
-        return (1 - self.sup_weight) * unsup_loss + self.sup_weight * sup_loss
+        if targets.size() == torch.Size([0]):
+            return torch.tensor(0., requires_grad=True).to(targets.device)
+        else:
+            # select labeled images according to the class reordering of base_dataset
+            norm_mask = targets < self.num_norm_targets
+            unsup_loss = self.unsup_contrast_loss(embeds, t_embeds)
+            # TODO: check if embeds would become zero if norm_mask is all False
+            sup_loss = self.sup_contrast_loss(embeds[norm_mask], targets[norm_mask])
+            return (1 - self.sup_weight) * unsup_loss + self.sup_weight * sup_loss
 
     def dot_others(self, embeds):
         # return dot product with each other embedding, excluding self * self
