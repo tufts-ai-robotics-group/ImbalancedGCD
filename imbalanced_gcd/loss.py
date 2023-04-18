@@ -17,7 +17,6 @@ class GCDLoss(nn.Module):
             # select labeled images according to the class reordering of base_dataset
             norm_mask = targets < self.num_norm_targets
             unsup_loss = self.unsup_contrast_loss(embeds, t_embeds)
-            # TODO: check if embeds would become zero if norm_mask is all False
             sup_loss = self.sup_contrast_loss(embeds[norm_mask], targets[norm_mask])
             return (1 - self.sup_weight) * unsup_loss + self.sup_weight * sup_loss
 
@@ -44,9 +43,14 @@ class GCDLoss(nn.Module):
         for target in unique_targets:
             # dot product of same class over dot product over all classes
             target_mask = targets == target
+            if torch.sum(target_mask) == 1:
+                continue
             target_embeds = embeds[target_mask]
             target_denoms = denoms[target_mask]
             nums = torch.sum(self.dot_others(target_embeds) / self.sup_temp, dim=1)
             # only dividing nums since otherwise target_denoms needs to be repeated in above sum
             losses = torch.cat((losses, target_denoms - (nums / len(nums))))
-        return torch.mean(losses)
+        if losses.size() == torch.Size([0]):
+            return torch.tensor(0., requires_grad=True).to(embeds.device)
+        else:
+            return torch.mean(losses)

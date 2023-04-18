@@ -6,7 +6,6 @@ import random
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 
 from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced_datasets
 
@@ -14,6 +13,7 @@ from imbalanced_gcd.model import DinoGCD
 from imbalanced_gcd.augmentation import gcd_twofold_transform
 from imbalanced_gcd.eval.eval import calc_accuracy
 from imbalanced_gcd.loss import GCDLoss
+from imbalanced_gcd.logger import AverageWriter
 
 
 def get_args():
@@ -139,7 +139,7 @@ def train_gcd(args):
     # init loss
     loss_func = GCDLoss(normal_classes, args.sup_weight)
     # init tensorboard, with random comment to stop overlapping runs
-    writer = SummaryWriter(args.label, comment=str(random.randint(0, 9999)))
+    av_writer = AverageWriter(args.label, comment=str(random.randint(0, 9999)))
     # metric dict for recording hparam metrics
     metric_dict = {}
     # model training
@@ -156,13 +156,10 @@ def train_gcd(args):
                 model.eval()
                 dataloader = test_loader
             # vars for tensorboard stats
-            cnt = 0
-            epoch_loss = 0.
             epoch_acc = 0.
             # tensors for caching embeddings and targets
             epoch_embeds = torch.empty(0, model.out_dim).to(device)
             epoch_targets = torch.empty(0, dtype=torch.long).to(device)
-            # for (t_data, data), targets, uq_idx in dataloader:
             for batch in dataloader:
                 if phase == "Train":
                     (t_data, data), targets, uq_idx, label_mask = batch
@@ -188,32 +185,29 @@ def train_gcd(args):
                     scheduler.step()
                 epoch_embeds = torch.vstack((epoch_embeds, embeds[label_mask]))
                 epoch_targets = torch.hstack((epoch_targets, targets[label_mask]))
-                # calculate statistics
-                epoch_loss = (loss.item() * data.size(0) +
-                              cnt * epoch_loss) / (cnt + data.size(0))
-                cnt += data.size(0)
-            # output statistics
-            writer.add_scalar(f"{phase}/Average Loss", epoch_loss, epoch)
+                # output statistics
+                av_writer.update(f"{phase}/Average Loss", loss, torch.sum(label_mask))
+            print((f"Epoch {epoch + 1}/{args.num_epochs} {phase} Loss: "
+                   f"{av_writer.get_avg(f'{phase}/Average Loss'):.4f}"))
             if phase != "Train":
-                print(f"{phase} Loss: {epoch_loss:.4f}")
                 epoch_acc = calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets)
-                writer.add_scalar(f"{phase}/Accuracy", epoch_acc, epoch)
+                av_writer.update(f"{phase}/Accuracy", epoch_acc)
                 # record end of training stats, grouped as Metrics in Tensorboard
                 if epoch == args.num_epochs - 1:
                     # note non-numeric values (NaN, None, ect.) will cause entry
                     # to not be displayed in Tensorboard HPARAMS tab
                     metric_dict.update({
-                        f"Metrics/{phase}_loss": epoch_loss,
+                        f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
                         f"Metrics/{phase}_acc": epoch_acc,
                     })
     # record hparams all at once and after all other writer calls
     # to avoid issues with Tensorboard changing output file
-    writer.add_hparams({
+    av_writer.writer.add_hparams({
         "lr_e": args.lr_e,
         "lr_c": args.lr_c,
         "sup_weight": args.sup_weight,
     }, metric_dict)
-    torch.save(model.state_dict(), Path(writer.get_logdir()) / f"{args.num_epochs}.pt")
+    torch.save(model.state_dict(), Path(av_writer.writer.get_logdir()) / f"{args.num_epochs}.pt")
 
 
 if __name__ == "__main__":
