@@ -144,6 +144,8 @@ def train_gcd(args):
     metric_dict = {}
     # model training
     for epoch in range(args.num_epochs):
+        print("=========================================")
+        print(f"Epoch {epoch + 1}/{args.num_epochs}")
         # Each epoch has a training, validation, and test phase
         for phase in phases:
             if phase == "Train":
@@ -192,6 +194,8 @@ def train_gcd(args):
             if phase != "Train":
                 epoch_acc = calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets)
                 av_writer.update(f"{phase}/Accuracy", epoch_acc)
+                print((f"Epoch {epoch + 1}/{args.num_epochs} {phase} Accuracy: "
+                       f"{epoch_acc:.4f}"))
                 # record end of training stats, grouped as Metrics in Tensorboard
                 if epoch == args.num_epochs - 1:
                     # note non-numeric values (NaN, None, ect.) will cause entry
@@ -200,6 +204,8 @@ def train_gcd(args):
                         f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
                         f"Metrics/{phase}_acc": epoch_acc,
                     })
+            # output statistics
+            av_writer.write(epoch)
     # record hparams all at once and after all other writer calls
     # to avoid issues with Tensorboard changing output file
     av_writer.writer.add_hparams({
