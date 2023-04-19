@@ -32,14 +32,6 @@ def get_args():
     parser.add_argument('--prop_minority_class', type=float, default=0.5)
     parser.add_argument('--seed', type=int, default=0)
 
-    # model arguments
-    parser.add_argument("--nlayers", type=int, default=3)
-    parser.add_argument("--hidden_dim", type=int, default=2048)
-    parser.add_argument("--bottleneck_dim", type=int, default=256)
-    parser.add_argument("--out_dim", type=int, default=128)
-    parser.add_argument("--use_bn", type=bool, default=True)
-    parser.add_argument("--norm_last_layer", type=bool, default=True)
-
     # model label for logging
     parser.add_argument("--label", type=str, default=None)
     # training hyperparameters
