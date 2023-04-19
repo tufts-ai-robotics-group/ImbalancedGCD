@@ -21,7 +21,7 @@ def sim_gcd_train(image_size=IMAGE_SIZE):
         transforms.Resize(image_size, interpolation=INTERP),
         transforms.RandomCrop(image_size),
         transforms.RandomHorizontalFlip(),
-        transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)], p=0.8),
+        # transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)], p=0.8),
         dino_norm_trans(),
     ])
 
