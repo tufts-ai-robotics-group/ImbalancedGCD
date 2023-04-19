@@ -5,8 +5,8 @@ from torch.nn.init import trunc_normal_
 
 
 class DinoGCD(nn.Module):
-    def __init__(self, out_dim=256, use_bn=False,
-                 norm_last_layer=True, nlayers=5, hidden_dim=2048, bottleneck_dim=256) -> None:
+    def __init__(self, out_dim=256, use_bn=True,
+                 norm_last_layer=True, nlayers=3, hidden_dim=2048, bottleneck_dim=256) -> None:
         super().__init__()
         self.out_dim = out_dim
         # pretrained DINO backbone
