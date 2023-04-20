@@ -25,7 +25,7 @@ def calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets, ss_met
     # apply SS clustering and output results
     if ss_method == 'KMeans':
         # SS KMeans
-        ss_est = SSKMeans(train_labeled_embed, train_labeled_targets,
+        ss_est = SSKMeans(train_labeled_embed, train_labeled_targets, epoch_embeds,
                           (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
             epoch_embeds)
     elif ss_method == 'GMM':
