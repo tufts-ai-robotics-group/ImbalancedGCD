@@ -1,5 +1,4 @@
 import argparse
-import json
 from pathlib import Path
 import random
 
@@ -215,10 +214,6 @@ def train_gcd(args):
         "sup_weight": args.sup_weight,
     }, metric_dict)
     torch.save(model.state_dict(), Path(av_writer.writer.get_logdir()) / f"{args.num_epochs}.pt")
-
-    # save args to file
-    with open(Path(av_writer.writer.get_logdir()) / "args.json", "w") as f:
-        json.dump(vars(args), f, indent=4)
 
 
 if __name__ == "__main__":
