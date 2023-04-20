@@ -1,6 +1,6 @@
 import argparse
-from pathlib import Path
 import json
+from pathlib import Path
 import random
 
 # from sklearn.metrics import roc_auc_score
@@ -111,9 +111,7 @@ def train_gcd(args):
     normal_classes = torch.arange(args.num_labeled_classes).to(device)
     args.normal_classes = normal_classes
     # init model
-    model = DinoGCD(out_dim=args.out_dim, use_bn=args.use_bn,
-                    norm_last_layer=args.norm_last_layer, nlayers=args.nlayers,
-                    hidden_dim=args.hidden_dim, bottleneck_dim=args.bottleneck_dim).to(device)
+    model = DinoGCD().to(device)
     # init optimizer
     optim = torch.optim.AdamW([
         {
@@ -194,19 +192,19 @@ def train_gcd(args):
                 av_writer.update(f"{phase}/Average Loss", loss, torch.sum(label_mask))
             print((f"Epoch {epoch + 1}/{args.num_epochs} {phase} Loss: "
                    f"{av_writer.get_avg(f'{phase}/Average Loss'):.4f}"))
-            if phase != "Train":
-                epoch_acc = calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets)
-                av_writer.update(f"{phase}/Accuracy", epoch_acc)
-                print((f"Epoch {epoch + 1}/{args.num_epochs} {phase} Accuracy: "
-                       f"{epoch_acc:.4f}"))
+            epoch_acc = calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets,
+                                      ss_method='GMM')
+            print((f"Epoch {epoch + 1}/{args.num_epochs} {phase} Accuracy: "
+                   f"{epoch_acc:.4f}"))
+            if phase != "Train" and epoch == args.num_epochs - 1:
                 # record end of training stats, grouped as Metrics in Tensorboard
-                if epoch == args.num_epochs - 1:
-                    # note non-numeric values (NaN, None, ect.) will cause entry
-                    # to not be displayed in Tensorboard HPARAMS tab
-                    metric_dict.update({
-                        f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
-                        f"Metrics/{phase}_acc": epoch_acc,
-                    })
+                # note non-numeric values (NaN, None, ect.) will cause entry
+                # to not be displayed in Tensorboard HPARAMS tab
+                epoch_acc = calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets)
+                metric_dict.update({
+                    f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
+                    f"Metrics/{phase}_acc": epoch_acc,
+                })
             # output statistics
             av_writer.write(epoch)
     # record hparams all at once and after all other writer calls
