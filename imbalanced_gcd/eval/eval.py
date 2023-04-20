@@ -3,6 +3,7 @@ from imbalanced_gcd.ss_gmm import SSGMM
 import imbalanced_gcd.eval.stats as stats
 
 import torch
+import time
 
 
 @torch.no_grad()
@@ -23,6 +24,8 @@ def calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets, ss_met
     epoch_embeds = epoch_embeds.detach().cpu().numpy()
     epoch_targets = epoch_targets.detach().cpu().numpy()
     # apply SS clustering and output results
+    # record clustering time
+    start = time.time()
     if ss_method == 'KMeans':
         # SS KMeans
         ss_est = SSKMeans(train_labeled_embed, train_labeled_targets,
@@ -37,5 +40,7 @@ def calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets, ss_met
     # calculate accuracy
     row_ind, col_ind, weight = stats.assign_clusters(y_pred, epoch_targets)
     acc = stats.cluster_acc(row_ind, col_ind, weight)
+    end = time.time()
+    print(f'Clustering and calculating accuracy time: {end - start:.2f} seconds')
 
     return acc

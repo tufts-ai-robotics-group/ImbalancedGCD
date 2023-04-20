@@ -1,4 +1,5 @@
 import argparse
+import json
 from pathlib import Path
 import random
 
@@ -144,8 +145,6 @@ def train_gcd(args):
     metric_dict = {}
     # model training
     for epoch in range(args.num_epochs):
-        print("=========================================")
-        print(f"Epoch {epoch + 1}/{args.num_epochs}")
         # Each epoch has a training, validation, and test phase
         for phase in phases:
             if phase == "Train":
@@ -189,12 +188,6 @@ def train_gcd(args):
                 epoch_targets = torch.hstack((epoch_targets, targets[label_mask]))
                 # output statistics
                 av_writer.update(f"{phase}/Average Loss", loss, torch.sum(label_mask))
-            print((f"Epoch {epoch + 1}/{args.num_epochs} {phase} Loss: "
-                   f"{av_writer.get_avg(f'{phase}/Average Loss'):.4f}"))
-            epoch_acc = calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets,
-                                      ss_method='GMM')
-            print((f"Epoch {epoch + 1}/{args.num_epochs} {phase} Accuracy: "
-                   f"{epoch_acc:.4f}"))
             if phase != "Train" and epoch == args.num_epochs - 1:
                 # record end of training stats, grouped as Metrics in Tensorboard
                 # note non-numeric values (NaN, None, ect.) will cause entry
@@ -214,6 +207,14 @@ def train_gcd(args):
         "sup_weight": args.sup_weight,
     }, metric_dict)
     torch.save(model.state_dict(), Path(av_writer.writer.get_logdir()) / f"{args.num_epochs}.pt")
+
+    # save args
+    keys = ['dataset_name', 'prop_train_label', 'imbalance_method', 'imbalance_ratio',
+            'prop_minority_class', 'seed', 'label', 'num_epocs', 'batch_size', 'lr_e',
+            'lr_c', 'sup_weight']
+    args_dict = {k: v for k, v in vars(args).items() if k in keys}
+    with open(Path(av_writer.writer.get_logdir()) / "args.json", "w") as f:
+        json.dump(args_dict, f)
 
 
 if __name__ == "__main__":
