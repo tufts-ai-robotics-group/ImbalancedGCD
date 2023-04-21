@@ -27,7 +27,9 @@ class GCDLoss(nn.Module):
         return (embeds @ embeds.T)[~torch.eye(n, dtype=bool)].reshape((n, n - 1))
 
     def unsup_contrast_loss(self, embeds, t_embeds):
-        # dot product of transformed image over dot product over other images
+        if embeds.shape[0] < 2:
+            return torch.tensor(0., requires_grad=True).to(embeds.device)
+        # dot product of t ransformed image over dot product over other images
         nums = torch.sum(embeds * t_embeds, dim=1) / self.unsup_temp
         denom_prods = self.dot_others(embeds) / self.unsup_temp
         denoms = torch.logsumexp(denom_prods, dim=1)
