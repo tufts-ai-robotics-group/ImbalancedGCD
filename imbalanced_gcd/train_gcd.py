@@ -143,6 +143,13 @@ def train_gcd(args):
     av_writer = AverageWriter(args.label, comment=str(random.randint(0, 9999)))
     # metric dict for recording hparam metrics
     metric_dict = {}
+    # save args
+    keys = ['dataset_name', 'prop_train_label', 'imbalance_method', 'imbalance_ratio',
+            'prop_minority_class', 'seed', 'label', 'num_epocs', 'batch_size', 'lr_e',
+            'lr_c', 'sup_weight']
+    args_dict = {k: v for k, v in vars(args).items() if k in keys}
+    with open(Path(av_writer.writer.get_logdir()) / "args.json", "w") as f:
+        json.dump(args_dict, f)
     # model training
     for epoch in range(args.num_epochs):
         # Each epoch has a training, validation, and test phase
@@ -207,14 +214,6 @@ def train_gcd(args):
         "sup_weight": args.sup_weight,
     }, metric_dict)
     torch.save(model.state_dict(), Path(av_writer.writer.get_logdir()) / f"{args.num_epochs}.pt")
-
-    # save args
-    keys = ['dataset_name', 'prop_train_label', 'imbalance_method', 'imbalance_ratio',
-            'prop_minority_class', 'seed', 'label', 'num_epocs', 'batch_size', 'lr_e',
-            'lr_c', 'sup_weight']
-    args_dict = {k: v for k, v in vars(args).items() if k in keys}
-    with open(Path(av_writer.writer.get_logdir()) / "args.json", "w") as f:
-        json.dump(args_dict, f)
 
 
 if __name__ == "__main__":

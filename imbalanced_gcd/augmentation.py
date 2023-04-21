@@ -83,15 +83,13 @@ class DINOConsistentTrans:
         ])
         # guaranteed blur transform
         blur_transform = transforms.Compose([
-            transforms.RandomResizedCrop(image_size, scale=(.4, 1),
-                                         interpolation=INTERP),
+            transforms.RandomCrop(image_size),
             flip_and_color_jitter,
             GaussianBlur(1.0),
         ])
         # chance of blur and/or solarize transform
         blur_solarize_transform = transforms.Compose([
-            transforms.RandomResizedCrop(image_size, scale=(.4, 1),
-                                         interpolation=INTERP),
+            transforms.RandomCrop(image_size),
             flip_and_color_jitter,
             GaussianBlur(0.1),
             transforms.RandomSolarize(128, p=.2),
@@ -125,6 +123,7 @@ class DINOTestTrans:
     def __init__(self, image_size) -> None:
         self.transform = transforms.Compose([
             transforms.Resize(image_size, interpolation=INTERP),
+            transforms.CenterCrop(image_size),
             DINONormTrans(),
         ])
 
