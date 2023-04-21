@@ -199,19 +199,26 @@ def train_gcd(args):
                 epoch_targets = torch.hstack((epoch_targets, targets[label_mask]))
                 # output statistics
                 av_writer.update(f"{phase}/Average Loss", loss, torch.sum(label_mask))
-            if phase != "Train" and epoch == args.num_epochs - 1:
+            if phase != "Train":
                 # record end of training stats, grouped as Metrics in Tensorboard
                 # note non-numeric values (NaN, None, ect.) will cause entry
                 # to not be displayed in Tensorboard HPARAMS tab
-                acc_mean, ci_low, ci_high = calc_accuracy(model, args, train_loader, epoch_embeds,
-                                                          epoch_targets, ss_method=args.ss_method,
-                                                          num_bootstrap=args.num_bootstrap)
-                metric_dict.update({
-                    f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
-                    f"Metrics/{phase}_acc_mean": acc_mean,
-                    f"Metrics/{phase}_acc_ci_low": ci_low,
-                    f"Metrics/{phase}_acc_ci_high": ci_high,
-                })
+                # periodic accuracy calculation
+                if epoch + 1 % 10 == 0:
+                    acc_mean, \
+                        ci_low, \
+                        ci_high = calc_accuracy(model, args, train_loader, epoch_embeds,
+                                                epoch_targets, ss_method=args.ss_method,
+                                                num_bootstrap=args.num_bootstrap)
+                    print(f"Epoch {epoch} {phase} Accuracy: {acc_mean:.3f} ")
+                    # record metrics in last epoch
+                    if epoch == args.num_epochs - 1:
+                        metric_dict.update({
+                            f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
+                            f"Metrics/{phase}_acc_mean": acc_mean,
+                            f"Metrics/{phase}_acc_ci_low": ci_low,
+                            f"Metrics/{phase}_acc_ci_high": ci_high,
+                        })
             # output statistics
             av_writer.write(epoch)
     # record hparams all at once and after all other writer calls
