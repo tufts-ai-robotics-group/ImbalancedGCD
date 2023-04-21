@@ -43,6 +43,12 @@ def get_args():
     parser.add_argument("--lr_c", type=float, default=1e-2,
                         help="Learning rate for linear classifier {w_y, b_y}")
     parser.add_argument("--num_workers", type=int, default=4)
+    # clustering hyperparameters
+    parser.add_argument("--num_bootstrap", type=int, default=1,
+                        help="Number of bootstrap rounds for clustering")
+    parser.add_argument("--ss_method", type=str, default="KMeans",
+                        choices=["KMeans", "GMM"],
+                        help="Semi supervised clustering method. options: KMeans, GMM")
     # loss hyperparameters
     parser.add_argument("--sup_weight", type=float, default=0.35,
                         help="Supervised loss weight")
@@ -163,8 +169,6 @@ def train_gcd(args):
             else:
                 model.eval()
                 dataloader = test_loader
-            # vars for tensorboard stats
-            epoch_acc = 0.
             # tensors for caching embeddings and targets
             epoch_embeds = torch.empty(0, model.out_dim).to(device)
             epoch_targets = torch.empty(0, dtype=torch.long).to(device)
@@ -199,10 +203,14 @@ def train_gcd(args):
                 # record end of training stats, grouped as Metrics in Tensorboard
                 # note non-numeric values (NaN, None, ect.) will cause entry
                 # to not be displayed in Tensorboard HPARAMS tab
-                epoch_acc = calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets)
+                acc_mean, ci_low, ci_high = calc_accuracy(model, args, train_loader, epoch_embeds,
+                                                          epoch_targets, ss_method=args.ss_method,
+                                                          num_bootstrap=args.num_bootstrap)
                 metric_dict.update({
                     f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
-                    f"Metrics/{phase}_acc": epoch_acc,
+                    f"Metrics/{phase}_acc_mean": acc_mean,
+                    f"Metrics/{phase}_acc_ci_low": ci_low,
+                    f"Metrics/{phase}_acc_ci_high": ci_high,
                 })
             # output statistics
             av_writer.write(epoch)
