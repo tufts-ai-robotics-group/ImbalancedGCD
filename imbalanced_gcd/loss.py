@@ -7,7 +7,7 @@ class GCDLoss(nn.Module):
         super().__init__()
         self.sup_weight = supervised_weight
         self.num_norm_targets = len(norm_targets)
-        self.unsup_temp = .1
+        self.unsup_temp = 1
         self.sup_temp = .1
 
     def forward(self, embeds, t_embeds, targets):

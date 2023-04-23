@@ -203,22 +203,20 @@ def train_gcd(args):
                 # record end of training stats, grouped as Metrics in Tensorboard
                 # note non-numeric values (NaN, None, ect.) will cause entry
                 # to not be displayed in Tensorboard HPARAMS tab
-                # periodic accuracy calculation
-                if (epoch + 1) % 10 == 0:
+                # record metrics in last epoch
+                if epoch == args.num_epochs - 1:
                     acc_mean, \
                         ci_low, \
                         ci_high = calc_accuracy(model, args, train_loader, epoch_embeds,
                                                 epoch_targets, ss_method=args.ss_method,
                                                 num_bootstrap=args.num_bootstrap)
-                    print(f"Epoch {epoch} {phase} Accuracy: {acc_mean:.3f} ")
-                    # record metrics in last epoch
-                    if epoch == args.num_epochs - 1:
-                        metric_dict.update({
-                            f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
-                            f"Metrics/{phase}_acc_mean": acc_mean,
-                            f"Metrics/{phase}_acc_ci_low": ci_low,
-                            f"Metrics/{phase}_acc_ci_high": ci_high,
-                        })
+                    print(f"Epoch {epoch+1} {phase} Accuracy: {acc_mean:.3f} ")
+                    metric_dict.update({
+                        f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
+                        f"Metrics/{phase}_acc_mean": acc_mean,
+                        f"Metrics/{phase}_acc_ci_low": ci_low,
+                        f"Metrics/{phase}_acc_ci_high": ci_high,
+                    })
             # output statistics
             av_writer.write(epoch)
     # record hparams all at once and after all other writer calls
