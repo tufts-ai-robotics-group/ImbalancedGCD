@@ -133,10 +133,10 @@ class DINOTestTrans:
 
 class gcd_twofold_transform:
     def __init__(self, image_size):
-        self.train_transform = sim_gcd_train(image_size=image_size)
-        self.test_transform = sim_gcd_test(image_size=image_size)
-        # self.train_transform = DINOConsistentTrans(image_size=image_size)
-        # self.test_transform = DINOTestTrans(image_size=image_size)
+        # self.train_transform = sim_gcd_train(image_size=image_size)
+        # self.test_transform = sim_gcd_test(image_size=image_size)
+        self.train_transform = DINOConsistentTrans(image_size=image_size)
+        self.test_transform = DINOTestTrans(image_size=image_size)
 
     def __call__(self, img):
         transformed_out = self.train_transform(img)

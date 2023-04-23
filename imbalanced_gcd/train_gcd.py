@@ -204,7 +204,7 @@ def train_gcd(args):
                 # note non-numeric values (NaN, None, ect.) will cause entry
                 # to not be displayed in Tensorboard HPARAMS tab
                 # periodic accuracy calculation
-                if epoch + 1 % 10 == 0:
+                if (epoch + 1) % 10 == 0:
                     acc_mean, \
                         ci_low, \
                         ci_high = calc_accuracy(model, args, train_loader, epoch_embeds,
