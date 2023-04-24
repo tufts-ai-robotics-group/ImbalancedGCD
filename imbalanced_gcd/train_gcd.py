@@ -52,6 +52,7 @@ def get_args():
     # loss hyperparameters
     parser.add_argument("--sup_weight", type=float, default=0.35,
                         help="Supervised loss weight")
+    parser.add_argument("--unsupervised_temp", type=float, default=0.1)
     args = parser.parse_args()
     # prepend runs folder to label if given
     if args.label is not None:
@@ -144,7 +145,7 @@ def train_gcd(args):
         [warmup_iters])
     phases = ["Train", "Valid", "Test"]
     # init loss
-    loss_func = GCDLoss(normal_classes, args.sup_weight)
+    loss_func = GCDLoss(normal_classes, args.sup_weight, args.unsupervised_temp)
     # init tensorboard, with random comment to stop overlapping runs
     av_writer = AverageWriter(args.label, comment=str(random.randint(0, 9999)))
     # metric dict for recording hparam metrics
