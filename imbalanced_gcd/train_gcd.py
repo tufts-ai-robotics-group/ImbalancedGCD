@@ -171,8 +171,10 @@ def train_gcd(args):
                 model.eval()
                 dataloader = test_loader
             # tensors for caching embeddings and targets
-            epoch_embeds = torch.empty(0, model.out_dim).to(device)
-            epoch_targets = torch.empty(0, dtype=torch.long).to(device)
+            epoch_normal_embeds = torch.empty(0, model.out_dim).to(device)
+            epoch_normal_targets = torch.empty(0, dtype=torch.long).to(device)
+            epoch_novel_embeds = torch.empty(0, model.out_dim).to(device)
+            epoch_novel_targets = torch.empty(0, dtype=torch.long).to(device)
             for batch in dataloader:
                 if phase == "Train":
                     (t_data, data), targets, uq_idx, label_mask = batch
@@ -196,8 +198,11 @@ def train_gcd(args):
                     loss.backward()
                     optim.step()
                     scheduler.step()
-                epoch_embeds = torch.vstack((epoch_embeds, embeds[label_mask]))
-                epoch_targets = torch.hstack((epoch_targets, targets[label_mask]))
+                if epoch == args.num_epochs - 1:
+                    epoch_normal_embeds = torch.vstack((epoch_normal_embeds, embeds[label_mask]))
+                    epoch_normal_targets = torch.hstack((epoch_normal_targets, targets[label_mask]))
+                    epoch_novel_embeds = torch.vstack((epoch_novel_embeds, embeds[~label_mask]))
+                    epoch_novel_targets = torch.hstack((epoch_novel_targets, targets[~label_mask]))
                 # output statistics
                 av_writer.update(f"{phase}/Average Loss", loss, torch.sum(label_mask))
             if phase != "Train":
@@ -206,18 +211,26 @@ def train_gcd(args):
                 # to not be displayed in Tensorboard HPARAMS tab
                 # record metrics in last epoch
                 if epoch == args.num_epochs - 1:
-                    acc_mean, \
-                        ci_low, \
-                        ci_high = calc_accuracy(model, args, train_loader, epoch_embeds,
-                                                epoch_targets, ss_method=args.ss_method,
-                                                num_bootstrap=args.num_bootstrap)
-                    print(f"Epoch {epoch+1} {phase} Accuracy: {acc_mean:.3f} ")
-                    metric_dict.update({
-                        f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
-                        f"Metrics/{phase}_acc_mean": acc_mean,
-                        f"Metrics/{phase}_acc_ci_low": ci_low,
-                        f"Metrics/{phase}_acc_ci_high": ci_high,
-                    })
+                    tags = ["normal", "novel"]
+                    for tag in tags:
+                        if tag == "normal":
+                            embeds = epoch_normal_embeds
+                            targets = epoch_normal_targets
+                        else:
+                            embeds = epoch_novel_embeds
+                            targets = epoch_novel_targets
+                        acc_mean, \
+                            ci_low, \
+                            ci_high = calc_accuracy(model, args, train_loader, embeds,
+                                                    targets, ss_method=args.ss_method,
+                                                    num_bootstrap=args.num_bootstrap)
+                        print(f"Epoch {epoch+1} {phase} {tag} Accuracy: {acc_mean:.3f} ")
+                        metric_dict.update({
+                            f"Metrics/{phase}_{tag}_acc_mean": acc_mean,
+                            f"Metrics/{phase}_{tag}_acc_ci_low": ci_low,
+                            f"Metrics/{phase}_{tag}_acc_ci_high": ci_high,
+                        })
+
             # output statistics
             av_writer.write(epoch)
     # record hparams all at once and after all other writer calls
