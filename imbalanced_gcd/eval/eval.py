@@ -2,6 +2,7 @@ from imbalanced_gcd.ss_kmeans import SSKMeans
 from imbalanced_gcd.ss_gmm import SSGMM
 import imbalanced_gcd.eval.stats as stats
 
+from pathlib import Path
 import torch
 import numpy as np
 import time
@@ -59,3 +60,29 @@ def calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets,
     ci_high = np.percentile(acc_list, 97.5)
 
     return (acc_mean, ci_low, ci_high)
+
+
+def cache_test_outputs(model, normal_classes, test_loader, out_dir):
+    out_dir = Path(out_dir)
+    model.eval()
+    # choose device
+    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    # initialize caches
+    out_embeds = torch.empty((0, model.out_dim)).to(device)
+    out_targets = torch.tensor([], dtype=int).to(device)
+    out_norm_mask = torch.tensor([], dtype=bool).to(device)
+    for (t_data, data), targets, uq_idx, norm_mask in test_loader:
+        # move data to device
+        data = data.to(device)
+        targets = targets.long().to(device)
+        # forward pass
+        with torch.set_grad_enabled(False):
+            embeds = model(data)
+        # cache data
+        out_embeds = torch.vstack((out_embeds, embeds))
+        out_targets = torch.hstack((out_targets, targets))
+        out_norm_mask = torch.hstack((out_norm_mask, norm_mask))
+    # write caches
+    torch.save(out_embeds.cpu(), out_dir / "embeds.pt")
+    torch.save(out_targets.cpu(), out_dir / "targets.pt")
+    torch.save(out_norm_mask.cpu(), out_dir / "norm_mask.pt")
