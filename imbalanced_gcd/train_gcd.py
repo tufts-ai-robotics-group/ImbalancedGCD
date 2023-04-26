@@ -12,7 +12,7 @@ from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced
 
 from imbalanced_gcd.model import DinoGCD
 from imbalanced_gcd.augmentation import gcd_twofold_transform
-from imbalanced_gcd.eval.eval import calc_accuracy
+from imbalanced_gcd.eval.eval import calc_accuracy, cache_test_outputs
 from imbalanced_gcd.loss import GCDLoss
 from imbalanced_gcd.logger import AverageWriter
 
@@ -240,7 +240,9 @@ def train_gcd(args):
         "lr_c": args.lr_c,
         "sup_weight": args.sup_weight,
     }, metric_dict)
-    torch.save(model.state_dict(), Path(av_writer.writer.get_logdir()) / f"{args.num_epochs}.pt")
+    out_dir = Path(av_writer.writer.get_logdir())
+    torch.save(model.state_dict(), out_dir / f"{args.num_epochs}.pt")
+    cache_test_outputs(model, normal_classes, test_loader, out_dir)
 
 
 if __name__ == "__main__":
