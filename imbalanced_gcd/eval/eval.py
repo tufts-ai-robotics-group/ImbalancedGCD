@@ -71,7 +71,7 @@ def cache_test_outputs(model, normal_classes, test_loader, out_dir):
     out_embeds = torch.empty((0, model.out_dim)).to(device)
     out_targets = torch.tensor([], dtype=int).to(device)
     out_norm_mask = torch.tensor([], dtype=bool).to(device)
-    for (t_data, data), targets, uq_idx, norm_mask in test_loader:
+    for (t_data, data), targets, uq_idx in test_loader:
         # move data to device
         data = data.to(device)
         targets = targets.long().to(device)
@@ -81,7 +81,6 @@ def cache_test_outputs(model, normal_classes, test_loader, out_dir):
         # cache data
         out_embeds = torch.vstack((out_embeds, embeds))
         out_targets = torch.hstack((out_targets, targets))
-        out_norm_mask = torch.hstack((out_norm_mask, norm_mask))
     # write caches
     torch.save(out_embeds.cpu(), out_dir / "embeds.pt")
     torch.save(out_targets.cpu(), out_dir / "targets.pt")
