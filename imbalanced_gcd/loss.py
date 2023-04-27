@@ -5,7 +5,6 @@ import torch.nn as nn
 class GCDLoss(nn.Module):
     def __init__(self, norm_targets, supervised_weight=.35, unsup_temp=.1):
         super().__init__()
-        print('the unsupervised temperature is', unsup_temp)
         self.sup_weight = supervised_weight
         self.num_norm_targets = len(norm_targets)
         self.unsup_temp = unsup_temp
