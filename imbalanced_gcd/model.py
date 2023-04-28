@@ -14,6 +14,10 @@ class DinoGCD(nn.Module):
         self.mlp = DinoHead(in_dim=self.embed_len, out_dim=self.out_dim)
 
     def forward(self, x):
+        # return an empty tensor if x is empty
+        if x.size()[0] == 0:
+            return torch.tensor(0., requires_grad=True).to(x.device)
+
         # DINO embeddings
         raw_embeds = self.dino(x)
         embeds = raw_embeds.view(raw_embeds.shape[0], -1)
