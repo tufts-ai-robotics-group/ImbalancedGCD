@@ -131,15 +131,18 @@ class DINOTestTrans:
         return self.transform(img)
 
 
-class gcd_twofold_transform:
+class train_twofold_transform:
     def __init__(self, image_size):
-        # self.train_transform = sim_gcd_train(image_size=image_size)
-        # self.test_transform = sim_gcd_test(image_size=image_size)
-        self.train_transform = DINOConsistentTrans(image_size=image_size)
+        self.transform = DINOConsistentTrans(image_size=image_size)
+
+    def __call__(self, img):
+        return self.transform(img), self.transform(img)
+
+
+class test_twofold_transform:
+    def __init__(self, image_size):
+        self.train_transform = DINOCropTrans(image_size=image_size)
         self.test_transform = DINOTestTrans(image_size=image_size)
 
     def __call__(self, img):
-        transformed_out = self.train_transform(img)
-        out = self.test_transform(img)
-
-        return transformed_out, out
+        return self.train_transform(img), self.test_transform(img)

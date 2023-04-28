@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced_datasets
 
 from imbalanced_gcd.model import DinoGCD
-from imbalanced_gcd.augmentation import gcd_twofold_transform
+from imbalanced_gcd.augmentation import train_twofold_transform, test_twofold_transform
 from imbalanced_gcd.eval.eval import calc_accuracy, cache_test_outputs
 from imbalanced_gcd.loss import GCDLoss
 from imbalanced_gcd.logger import AverageWriter
@@ -76,19 +76,27 @@ def get_gcd_dataloaders(args):
     """
     args = get_class_splits(args)
     if args.imbalance_method is None:
-        train_dataset, valid_dataset, test_dataset = get_datasets(args.dataset_name,
-                                                                  gcd_twofold_transform(
+        train_dataset, valid_dataset, _ = get_datasets(args.dataset_name,
+                                                       train_twofold_transform(
+                                                           args.image_size),
+                                                       test_twofold_transform(args.image_size),
+                                                       args)[:3]
+        test_dataset, _, _ = get_datasets(args.dataset_name,
+                                          test_twofold_transform(args.image_size),
+                                          test_twofold_transform(args.image_size),
+                                          args)[:3]
+    else:
+        train_dataset, valid_dataset, _ = get_imbalanced_datasets(args.dataset_name,
+                                                                  train_twofold_transform(
                                                                       args.image_size),
-                                                                  gcd_twofold_transform(
+                                                                  test_twofold_transform(
                                                                       args.image_size),
                                                                   args)[:3]
-    else:
-        train_dataset, valid_dataset, test_dataset = get_imbalanced_datasets(args.dataset_name,
-                                                                             gcd_twofold_transform(
-                                                                                 args.image_size),
-                                                                             gcd_twofold_transform(
-                                                                                 args.image_size),
-                                                                             args)[:3]
+        test_dataset, _, _ = get_imbalanced_datasets(args.dataset_name,
+                                                     test_twofold_transform(args.image_size),
+                                                     test_twofold_transform(args.image_size),
+                                                     args)[:3]
+
     # add number of labeled and unlabeled classes to args
     args.num_labeled_classes = len(args.train_classes)
     args.num_unlabeled_classes = len(args.unlabeled_classes)
@@ -176,7 +184,7 @@ def train_gcd(args):
             epoch_novel_embeds = torch.empty(0, model.out_dim).to(device)
             epoch_novel_targets = torch.empty(0, dtype=torch.long).to(device)
             for batch in dataloader:
-                if phase == "Train":
+                if phase in ["Train", "Test"]:
                     (t_data, data), targets, uq_idx, label_mask = batch
                 else:
                     (t_data, data), targets, uq_idx = batch
