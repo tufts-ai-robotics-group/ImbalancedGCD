@@ -185,34 +185,33 @@ def train_gcd(args):
             epoch_novel_targets = torch.empty(0, dtype=torch.long).to(device)
             for batch in dataloader:
                 if phase in ["Train", "Test"]:
-                    (t_data, data), targets, uq_idx, label_mask = batch
+                    (t_data, data), targets, uq_idx, norm_mask = batch
                 else:
                     (t_data, data), targets, uq_idx = batch
                     targets = targets.long().to(device)
-                    label_mask = torch.isin(targets, normal_classes)
+                    norm_mask = torch.isin(targets, normal_classes)
                 # forward and loss
                 data = data.to(device)
                 t_data = t_data.to(device)
                 targets = targets.long().to(device)
-                label_mask = label_mask.to(device)
+                norm_mask = norm_mask.to(device)
                 optim.zero_grad()
                 with torch.set_grad_enabled(phase == "Train"):
                     embeds = model(data)
                     t_embeds = model(t_data)
-                    loss = loss_func(embeds[label_mask], t_embeds[label_mask],
-                                     targets[label_mask])
+                    loss = loss_func(embeds, t_embeds, targets, norm_mask)
                 # backward and optimize only if in training phase
                 if phase == "Train":
                     loss.backward()
                     optim.step()
                     scheduler.step()
                 if epoch == args.num_epochs - 1:
-                    epoch_normal_embeds = torch.vstack((epoch_normal_embeds, embeds[label_mask]))
-                    epoch_normal_targets = torch.hstack((epoch_normal_targets, targets[label_mask]))
-                    epoch_novel_embeds = torch.vstack((epoch_novel_embeds, embeds[~label_mask]))
-                    epoch_novel_targets = torch.hstack((epoch_novel_targets, targets[~label_mask]))
+                    epoch_normal_embeds = torch.vstack((epoch_normal_embeds, embeds[norm_mask]))
+                    epoch_normal_targets = torch.hstack((epoch_normal_targets, targets[norm_mask]))
+                    epoch_novel_embeds = torch.vstack((epoch_novel_embeds, embeds[~norm_mask]))
+                    epoch_novel_targets = torch.hstack((epoch_novel_targets, targets[~norm_mask]))
                 # output statistics
-                av_writer.update(f"{phase}/Average Loss", loss, torch.sum(label_mask))
+                av_writer.update(f"{phase}/Average Loss", loss, torch.sum(norm_mask))
             if phase != "Train":
                 # record end of training stats, grouped as Metrics in Tensorboard
                 # note non-numeric values (NaN, None, ect.) will cause entry
