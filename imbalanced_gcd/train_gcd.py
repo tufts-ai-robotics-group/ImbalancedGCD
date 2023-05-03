@@ -12,7 +12,7 @@ from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced
 
 from imbalanced_gcd.model import DinoGCD
 from imbalanced_gcd.augmentation import train_twofold_transform, DINOTestTrans
-from imbalanced_gcd.eval.eval import calc_accuracy, cache_test_outputs
+from imbalanced_gcd.eval.eval import evaluate, cache_test_outputs
 from imbalanced_gcd.loss import GCDLoss
 from imbalanced_gcd.logger import AverageWriter
 
@@ -226,14 +226,16 @@ def train_gcd(args):
                         targets = epoch_novel_targets
                     acc_mean, \
                         ci_low, \
-                        ci_high = calc_accuracy(model, args, train_loader, embeds,
-                                                targets, ss_method=args.ss_method,
-                                                num_bootstrap=args.num_bootstrap)
+                        ci_high, \
+                        auroc = evaluate(model, args, train_loader, embeds,
+                                         targets, ss_method=args.ss_method,
+                                         num_bootstrap=args.num_bootstrap)
                     print(f"Epoch {epoch+1} {phase} {tag} Accuracy: {acc_mean:.3f} ")
                     metric_dict.update({
                         f"Metrics/{phase}_{tag}_acc_mean": acc_mean,
                         f"Metrics/{phase}_{tag}_acc_ci_low": ci_low,
                         f"Metrics/{phase}_{tag}_acc_ci_high": ci_high,
+                        f"Metrics/{phase}_{tag}_auroc": auroc
                     })
         # output statistics
         av_writer.write(epoch)

@@ -3,14 +3,15 @@ from imbalanced_gcd.ss_gmm import SSGMM
 import imbalanced_gcd.eval.stats as stats
 
 from pathlib import Path
+from sklearn.metrics import roc_auc_score
 import torch
 import numpy as np
 import time
 
 
 @torch.no_grad()
-def calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets,
-                  ss_method='KMeans', num_bootstrap=1):
+def evaluate(model, args, train_loader, epoch_embeds, epoch_targets,
+             ss_method='KMeans', num_bootstrap=1):
     model.eval()
     device = args.device
     # collect labeled embeddings and labels in train_loader for SS clustering
@@ -52,12 +53,15 @@ def calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets,
     end = time.time()
     print(f'Average clustering time: {(end - start)/num_bootstrap:.2f} seconds')
 
+    # compute AUROC
+    auroc = calc_multiclass_auroc(ss_est, epoch_embeds, epoch_targets)
+
     # compute mean and confidence interval
     acc_mean = np.mean(acc_list)
     ci_low = np.percentile(acc_list, 2.5)
     ci_high = np.percentile(acc_list, 97.5)
 
-    return (acc_mean, ci_low, ci_high)
+    return (acc_mean, ci_low, ci_high), auroc
 
 
 def cache_test_outputs(model, normal_classes, test_loader, out_dir):
@@ -85,3 +89,22 @@ def cache_test_outputs(model, normal_classes, test_loader, out_dir):
     torch.save(out_embeds.cpu(), out_dir / "embeds.pt")
     torch.save(out_targets.cpu(), out_dir / "targets.pt")
     torch.save(out_norm_mask.cpu(), out_dir / "norm_mask.pt")
+
+
+def calc_multiclass_auroc(ss_est, embeds, targets):
+    """
+    Multi-class AUROC calculation based on a KMeans estimator.
+    The class probabilities are calculated as the negative distance to the cluster center.
+
+    :param ss_est: SSKMeans/SSGMM estimator that has been fit to the training set
+    :param embeds (np.array): embeddings of the test set
+    :param targets (np.array): targets of the test set
+    """
+
+    # calculate class probabilities
+    class_dist = ss_est.transform(embeds)
+    # closer class is more likely. use softmax to convert to probabilities
+    class_prob = torch.softmax(torch.tensor(-class_dist), dim=1)
+    # calculate AUROC
+    auroc = roc_auc_score(targets, class_prob, multi_class='ovo')
+    return auroc
