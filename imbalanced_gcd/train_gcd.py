@@ -170,6 +170,7 @@ def train_gcd(args):
         model.train()
         for (t_data, data), targets, uq_idx, norm_mask in train_loader:
             data = data.to(device)
+            t_data = t_data.to(device)
             targets = targets.long().to(device)
             norm_mask = norm_mask.to(device)
             optim.zero_grad()
