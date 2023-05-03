@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced_datasets
 
 from imbalanced_gcd.model import DinoGCD
-from imbalanced_gcd.augmentation import train_twofold_transform, test_twofold_transform
+from imbalanced_gcd.augmentation import train_twofold_transform, DINOTestTrans
 from imbalanced_gcd.eval.eval import calc_accuracy, cache_test_outputs
 from imbalanced_gcd.loss import GCDLoss
 from imbalanced_gcd.logger import AverageWriter
@@ -79,22 +79,21 @@ def get_gcd_dataloaders(args):
         train_dataset, valid_dataset, _ = get_datasets(args.dataset_name,
                                                        train_twofold_transform(
                                                            args.image_size),
-                                                       test_twofold_transform(args.image_size),
+                                                       DINOTestTrans(args.image_size),
                                                        args)[:3]
         test_dataset, _, _ = get_datasets(args.dataset_name,
-                                          test_twofold_transform(args.image_size),
-                                          test_twofold_transform(args.image_size),
+                                          DINOTestTrans(args.image_size),
+                                          None,
                                           args)[:3]
     else:
         train_dataset, valid_dataset, _ = get_imbalanced_datasets(args.dataset_name,
                                                                   train_twofold_transform(
                                                                       args.image_size),
-                                                                  test_twofold_transform(
-                                                                      args.image_size),
+                                                                  DINOTestTrans(args.image_size),
                                                                   args)[:3]
         test_dataset, _, _ = get_imbalanced_datasets(args.dataset_name,
-                                                     test_twofold_transform(args.image_size),
-                                                     test_twofold_transform(args.image_size),
+                                                     DINOTestTrans(args.image_size),
+                                                     None,
                                                      args)[:3]
 
     # add number of labeled and unlabeled classes to args
@@ -151,7 +150,6 @@ def train_gcd(args):
             lr_scheduler.CosineAnnealingLR(optim, total_iters - warmup_iters)
         ],
         [warmup_iters])
-    phases = ["Train", "Valid", "Test"]
     # init loss
     loss_func = GCDLoss(normal_classes, args.sup_weight, args.unsupervised_temp)
     # init tensorboard, with random comment to stop overlapping runs
@@ -167,79 +165,78 @@ def train_gcd(args):
         json.dump(args_dict, f)
     # model training
     for epoch in range(args.num_epochs):
-        # Each epoch has a training, validation, and test phase
-        for phase in phases:
-            if phase == "Train":
-                model.train()
-                dataloader = train_loader
-            elif phase == "Valid":
-                model.eval()
-                dataloader = valid_loader
-            else:
-                model.eval()
-                dataloader = test_loader
-            # tensors for caching embeddings and targets
-            epoch_normal_embeds = torch.empty(0, model.out_dim).to(device)
-            epoch_normal_targets = torch.empty(0, dtype=torch.long).to(device)
-            epoch_novel_embeds = torch.empty(0, model.out_dim).to(device)
-            epoch_novel_targets = torch.empty(0, dtype=torch.long).to(device)
-            for batch in dataloader:
-                if phase in ["Train", "Test"]:
-                    (t_data, data), targets, uq_idx, norm_mask = batch
+        # The validation and test dataloaders will be used only at the last epoch
+        phase = 'Train'
+        model.train()
+        for (t_data, data), targets, uq_idx, norm_mask in train_loader:
+            data = data.to(device)
+            targets = targets.long().to(device)
+            norm_mask = norm_mask.to(device)
+            optim.zero_grad()
+            with torch.set_grad_enabled(True):
+                embeds = model(data)
+                t_embeds = model(t_data)
+                loss = loss_func(embeds, t_embeds, targets, norm_mask)
+                loss.backward()
+                optim.step()
+                scheduler.step()
+                # only report train loss
+                av_writer.update(f"{phase}/Average Loss", loss, torch.sum(norm_mask))
+        # record end of training stats, grouped as Metrics in Tensorboard
+        # note non-numeric values (NaN, None, ect.) will cause entry
+        # to not be displayed in Tensorboard HPARAMS tab
+        # record metrics in last epoch
+        if epoch == args.num_epochs - 1:
+            phases = ["Valid", "Test"]
+            print('Evaluating on validation and test sets...')
+            for phase in phases:
+                if phase == "Valid":
+                    model.eval()
+                    dataloader = valid_loader
                 else:
-                    (t_data, data), targets, uq_idx = batch
+                    model.eval()
+                    dataloader = test_loader
+                # tensors for caching embeddings and targets
+                epoch_normal_embeds = torch.empty(0, model.out_dim).to(device)
+                epoch_normal_targets = torch.empty(0, dtype=torch.long).to(device)
+                epoch_novel_embeds = torch.empty(0, model.out_dim).to(device)
+                epoch_novel_targets = torch.empty(0, dtype=torch.long).to(device)
+                for batch in dataloader:
+                    if phase == "Valid":
+                        data, targets, uq_idx = batch
+                        norm_mask = torch.isin(targets, normal_classes)
+                    else:  # phase == "Test"
+                        data, targets, uq_idx, norm_mask = batch
+                    data = data.to(device)
                     targets = targets.long().to(device)
-                    norm_mask = torch.isin(targets, normal_classes)
-                # forward and loss
-                data = data.to(device)
-                t_data = t_data.to(device)
-                targets = targets.long().to(device)
-                norm_mask = norm_mask.to(device)
-                optim.zero_grad()
-                with torch.set_grad_enabled(phase == "Train"):
+                    norm_mask = norm_mask.to(device)
                     embeds = model(data)
-                    t_embeds = model(t_data)
-                    loss = loss_func(embeds, t_embeds, targets, norm_mask)
-                # backward and optimize only if in training phase
-                if phase == "Train":
-                    loss.backward()
-                    optim.step()
-                    scheduler.step()
-                if epoch == args.num_epochs - 1:
                     epoch_normal_embeds = torch.vstack((epoch_normal_embeds, embeds[norm_mask]))
                     epoch_normal_targets = torch.hstack((epoch_normal_targets, targets[norm_mask]))
                     epoch_novel_embeds = torch.vstack((epoch_novel_embeds, embeds[~norm_mask]))
                     epoch_novel_targets = torch.hstack((epoch_novel_targets, targets[~norm_mask]))
-                # output statistics
-                av_writer.update(f"{phase}/Average Loss", loss, torch.sum(norm_mask))
-            if phase != "Train":
-                # record end of training stats, grouped as Metrics in Tensorboard
-                # note non-numeric values (NaN, None, ect.) will cause entry
-                # to not be displayed in Tensorboard HPARAMS tab
-                # record metrics in last epoch
-                if epoch == args.num_epochs - 1:
-                    tags = ["normal", "novel"]
-                    for tag in tags:
-                        if tag == "normal":
-                            embeds = epoch_normal_embeds
-                            targets = epoch_normal_targets
-                        else:
-                            embeds = epoch_novel_embeds
-                            targets = epoch_novel_targets
-                        acc_mean, \
-                            ci_low, \
-                            ci_high = calc_accuracy(model, args, train_loader, embeds,
-                                                    targets, ss_method=args.ss_method,
-                                                    num_bootstrap=args.num_bootstrap)
-                        print(f"Epoch {epoch+1} {phase} {tag} Accuracy: {acc_mean:.3f} ")
-                        metric_dict.update({
-                            f"Metrics/{phase}_{tag}_acc_mean": acc_mean,
-                            f"Metrics/{phase}_{tag}_acc_ci_low": ci_low,
-                            f"Metrics/{phase}_{tag}_acc_ci_high": ci_high,
-                        })
-
-            # output statistics
-            av_writer.write(epoch)
+                # calculate accuracy
+                tags = ["normal", "novel"]
+                for tag in tags:
+                    if tag == "normal":
+                        embeds = epoch_normal_embeds
+                        targets = epoch_normal_targets
+                    else:
+                        embeds = epoch_novel_embeds
+                        targets = epoch_novel_targets
+                    acc_mean, \
+                        ci_low, \
+                        ci_high = calc_accuracy(model, args, train_loader, embeds,
+                                                targets, ss_method=args.ss_method,
+                                                num_bootstrap=args.num_bootstrap)
+                    print(f"Epoch {epoch+1} {phase} {tag} Accuracy: {acc_mean:.3f} ")
+                    metric_dict.update({
+                        f"Metrics/{phase}_{tag}_acc_mean": acc_mean,
+                        f"Metrics/{phase}_{tag}_acc_ci_low": ci_low,
+                        f"Metrics/{phase}_{tag}_acc_ci_high": ci_high,
+                    })
+        # output statistics
+        av_writer.write(epoch)
     # record hparams all at once and after all other writer calls
     # to avoid issues with Tensorboard changing output file
     av_writer.writer.add_hparams({
