@@ -52,7 +52,6 @@ def get_args():
     # loss hyperparameters
     parser.add_argument("--sup_weight", type=float, default=0.35,
                         help="Supervised loss weight")
-    parser.add_argument("--unsupervised_temp", type=float, default=0.1)
     args = parser.parse_args()
     # prepend runs folder to label if given
     if args.label is not None:

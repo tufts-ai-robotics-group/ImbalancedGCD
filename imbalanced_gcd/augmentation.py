@@ -108,12 +108,3 @@ class train_twofold_transform:
 
     def __call__(self, img):
         return self.transform(img), self.transform(img)
-
-
-class test_twofold_transform:
-    def __init__(self, image_size):
-        self.train_transform = DINOCropTrans(image_size=image_size)
-        self.test_transform = DINOTestTrans(image_size=image_size)
-
-    def __call__(self, img):
-        return self.train_transform(img), self.test_transform(img)
