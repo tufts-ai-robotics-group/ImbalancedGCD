@@ -3,7 +3,7 @@ from imbalanced_gcd.ss_gmm import SSGMM
 import imbalanced_gcd.eval.stats as stats
 
 from pathlib import Path
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, pairwise_distances_argmin_min
 import torch
 import numpy as np
 import time
@@ -105,6 +105,10 @@ def calc_multiclass_auroc(ss_est, embeds, targets):
     class_dist = ss_est.transform(embeds)
     # closer class is more likely. use softmax to convert to probabilities
     class_prob = torch.softmax(torch.tensor(-class_dist), dim=1)
+    # get the class label for each centroid
+    centroids, _ = pairwise_distances_argmin_min(ss_est.cluster_centers_, embeds)
+    centroids_targets = targets[centroids]
+    assert len(np.unique(centroids_targets)) == len(centroids_targets)
     # calculate AUROC
-    auroc = roc_auc_score(targets, class_prob, multi_class='ovo')
+    auroc = roc_auc_score(targets, class_prob, multi_class='ovo', labels=centroids_targets)
     return auroc
