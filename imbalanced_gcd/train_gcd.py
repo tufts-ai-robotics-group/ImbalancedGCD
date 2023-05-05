@@ -188,6 +188,8 @@ def train_gcd(args):
         # to not be displayed in Tensorboard HPARAMS tab
         # record metrics in last epoch
         if epoch == args.num_epochs - 1:
+            # free up memory
+            del t_data, data, targets, label_mask, t_embeds, embeds, train_loader
             phases = ["Test"]
             print('Evaluating on validation and test sets...')
             for phase in phases:
@@ -216,10 +218,9 @@ def train_gcd(args):
                     epoch_targets = torch.hstack((epoch_targets, targets))
                     epoch_label_mask = torch.hstack((epoch_label_mask, label_mask))
                 # calculate accuracy
-                acc_mean, ci_low, ci_high, auroc = evaluate(model, args, train_loader,
-                                                            epoch_embeds, epoch_targets,
-                                                            epoch_label_mask, args.ss_method,
-                                                            args.num_bootstrap)
+                acc_mean, ci_low, ci_high, auroc = evaluate(model, args, epoch_embeds,
+                                                            epoch_targets, epoch_label_mask,
+                                                            args.ss_method, args.num_bootstrap)
                 tag = ['Overall', 'Normal', 'Novel']
                 for i, tag in enumerate(tag):
                     print(f"{phase} {tag} Accuracy: {acc_mean[i]:.3f} ")
