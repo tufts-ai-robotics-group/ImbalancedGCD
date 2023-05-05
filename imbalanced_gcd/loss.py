@@ -3,11 +3,11 @@ import torch.nn as nn
 
 
 class GCDLoss(nn.Module):
-    def __init__(self, norm_targets, supervised_weight=.35, unsup_temp=.1):
+    def __init__(self, norm_targets, supervised_weight=.35):
         super().__init__()
         self.sup_weight = supervised_weight
         self.num_norm_targets = len(norm_targets)
-        self.unsup_temp = unsup_temp
+        self.unsup_temp = .1
         self.sup_temp = .1
 
     def forward(self, embeds, t_embeds, targets, norm_mask):
@@ -35,6 +35,8 @@ class GCDLoss(nn.Module):
         return torch.mean(losses)
 
     def sup_contrast_loss(self, embeds, targets):
+        if embeds.shape[0] < 2:
+            return torch.tensor(0., requires_grad=True).to(embeds.device)
         unique_targets = torch.unique(targets)
         losses = torch.Tensor([]).to(embeds.device)
         # denominator calculation is the same regardless of class

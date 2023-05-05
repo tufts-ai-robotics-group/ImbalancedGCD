@@ -10,58 +10,61 @@ import time
 
 
 @torch.no_grad()
-def evaluate(model, args, train_loader, epoch_embeds, epoch_targets,
+def evaluate(model, args, epoch_embeds, epoch_targets, label_mask,
              ss_method='KMeans', num_bootstrap=1):
     model.eval()
-    device = args.device
-    # collect labeled embeddings and labels in train_loader for SS clustering
-    train_labeled_embed = torch.empty(0, model.out_dim).to(device)
-    train_labeled_targets = torch.empty(0, dtype=torch.long).to(device)
-    train_unlabeled_embed = torch.empty(0, model.out_dim).to(device)
-    for (t_data, data), targets, uq_idx, label_mask in train_loader:
-        embeds = model(data.to(device))
-        train_labeled_embed = torch.vstack((train_labeled_embed, embeds[label_mask]))
-        train_labeled_targets = torch.hstack((train_labeled_targets,
-                                              targets[label_mask].to(device)))
-        train_unlabeled_embed = torch.vstack((train_unlabeled_embed, embeds[~label_mask]))
-    train_labeled_embed = train_labeled_embed.detach().cpu().numpy()
-    train_labeled_targets = train_labeled_targets.detach().cpu().numpy()
-    train_unlabeled_embed = train_unlabeled_embed.detach().cpu().numpy()
     epoch_embeds = epoch_embeds.detach().cpu().numpy()
     epoch_targets = epoch_targets.detach().cpu().numpy()
+    test_labeled_embed = epoch_embeds[label_mask]
+    test_labeled_targets = epoch_targets[label_mask]
+    test_unlabeled_embed = epoch_embeds[~label_mask]
+    norm_embeds = torch.isin(epoch_targets, args.normal_classes).detach().cpu().numpy()
     # apply SS clustering and output results
     # initialize accuracy array
-    acc_list = np.zeros(num_bootstrap)
+    overall_acc = np.zeros(num_bootstrap)
+    normal_acc = np.zeros(num_bootstrap)
+    novel_acc = np.zeros(num_bootstrap)
     # record clustering time
     start = time.time()
     for i in range(num_bootstrap):
         if ss_method == 'KMeans':
             # SS KMeans
-            ss_est = SSKMeans(train_labeled_embed, train_labeled_targets,
+            ss_est = SSKMeans(test_labeled_embed, test_labeled_targets,
                               (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
-                train_unlabeled_embed)
+                test_unlabeled_embed)
         elif ss_method == 'GMM':
             # SS GMM
-            ss_est = SSGMM(train_labeled_embed, train_labeled_targets, train_unlabeled_embed,
+            ss_est = SSGMM(test_labeled_embed, test_labeled_targets, test_unlabeled_embed,
                            (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
-                train_unlabeled_embed)
+                test_unlabeled_embed)
         y_pred = ss_est.predict(epoch_embeds)
-        # calculate accuracy
+        # calculate overall accuracy
         row_ind, col_ind, weight = stats.assign_clusters(y_pred, epoch_targets)
         acc = stats.cluster_acc(row_ind, col_ind, weight)
-        acc_list[i] = acc
+        overall_acc[i] = acc
+        # calculate normal accuracy
+        row_ind, col_ind, weight = stats.assign_clusters(y_pred[norm_embeds],
+                                                         epoch_targets[norm_embeds])
+        acc = stats.cluster_acc(row_ind, col_ind, weight)
+        normal_acc[i] = acc
+        # calculate novel accuracy
+        row_ind, col_ind, weight = stats.assign_clusters(y_pred[~norm_embeds],
+                                                         epoch_targets[~norm_embeds])
+        acc = stats.cluster_acc(row_ind, col_ind, weight)
+        novel_acc[i] = acc
     end = time.time()
     print(f'Average clustering time: {(end - start)/num_bootstrap:.2f} seconds')
 
     # compute AUROC
-    auroc = calc_multiclass_auroc(ss_est, epoch_embeds, epoch_targets)
+    auroc_list = calc_multiclass_auroc(ss_est, epoch_embeds, epoch_targets)
 
-    # compute mean and confidence interval
-    acc_mean = np.mean(acc_list)
-    ci_low = np.percentile(acc_list, 2.5)
-    ci_high = np.percentile(acc_list, 97.5)
+    # compute mean and confidence interval for overall, normal, and novel accuracy
+    acc_list = np.array([overall_acc, normal_acc, novel_acc])
+    acc_mean = np.mean(acc_list, axis=1)
+    ci_low = np.percentile(acc_list, 2.5, axis=1)
+    ci_high = np.percentile(acc_list, 97.5, axis=1)
 
-    return (acc_mean, ci_low, ci_high), auroc
+    return (acc_mean, ci_low, ci_high), auroc_list
 
 
 def cache_test_outputs(model, normal_classes, test_loader, out_dir):
@@ -91,7 +94,7 @@ def cache_test_outputs(model, normal_classes, test_loader, out_dir):
     torch.save(out_norm_mask.cpu(), out_dir / "norm_mask.pt")
 
 
-def calc_multiclass_auroc(ss_est, embeds, targets):
+def calc_multiclass_auroc(ss_est, embeds, targets, norm_mask):
     """
     Multi-class AUROC calculation based on a KMeans estimator.
     The class probabilities are calculated as the negative distance to the cluster center.
@@ -99,6 +102,7 @@ def calc_multiclass_auroc(ss_est, embeds, targets):
     :param ss_est: SSKMeans/SSGMM estimator that has been fit to the training set
     :param embeds (np.array): embeddings of the test set
     :param targets (np.array): targets of the test set
+    :param norm_mask (np.array): mask of normal classes in the test set
     """
 
     # calculate class probabilities
@@ -108,7 +112,17 @@ def calc_multiclass_auroc(ss_est, embeds, targets):
     # get the class label for each centroid
     centroids, _ = pairwise_distances_argmin_min(ss_est.cluster_centers_, embeds)
     centroids_targets = targets[centroids]
+    # check that each centroid is assigned to a unique class
     assert len(np.unique(centroids_targets)) == len(centroids_targets)
-    # calculate AUROC
-    auroc = roc_auc_score(targets, class_prob, multi_class='ovo', labels=centroids_targets)
-    return auroc
+    # calculate AUROC for overall, normal, and novel classes
+    # normalize the probabilities to 1 for normal and novel classes
+    overall = roc_auc_score(targets, class_prob, multi_class='ovo', labels=centroids_targets)
+    normal = roc_auc_score(targets[norm_mask],
+                           class_prob[norm_mask] / class_prob[norm_mask].sum(axis=1),
+                           multi_class='ovo',
+                           labels=centroids_targets[norm_mask])
+    novel = roc_auc_score(targets[~norm_mask],
+                          class_prob[~norm_mask] / class_prob[~norm_mask].sum(axis=1),
+                          multi_class='ovo',
+                          labels=centroids_targets[~norm_mask])
+    return overall, normal, novel

@@ -74,6 +74,7 @@ def get_gcd_dataloaders(args):
             args: args updated with num_labeled_classes and num_unlabeled_classes
     """
     args = get_class_splits(args)
+    # TODO: Mention how to get the splits
     if args.imbalance_method is None:
         train_dataset, valid_dataset, _ = get_datasets(args.dataset_name,
                                                        train_twofold_transform(
@@ -150,7 +151,7 @@ def train_gcd(args):
         ],
         [warmup_iters])
     # init loss
-    loss_func = GCDLoss(normal_classes, args.sup_weight, args.unsupervised_temp)
+    loss_func = GCDLoss(normal_classes, args.sup_weight)
     # init tensorboard, with random comment to stop overlapping runs
     av_writer = AverageWriter(args.label, comment=str(random.randint(0, 9999)))
     # metric dict for recording hparam metrics
@@ -167,27 +168,27 @@ def train_gcd(args):
         # The validation and test dataloaders will be used only at the last epoch
         phase = 'Train'
         model.train()
-        for (t_data, data), targets, uq_idx, norm_mask in train_loader:
+        for (t_data, data), targets, uq_idx, label_mask in train_loader:
             data = data.to(device)
             t_data = t_data.to(device)
             targets = targets.long().to(device)
-            norm_mask = norm_mask.to(device)
+            label_mask = label_mask.to(device)
             optim.zero_grad()
             with torch.set_grad_enabled(True):
                 embeds = model(data)
                 t_embeds = model(t_data)
-                loss = loss_func(embeds, t_embeds, targets, norm_mask)
+                loss = loss_func(embeds, t_embeds, targets, label_mask)
                 loss.backward()
                 optim.step()
                 scheduler.step()
                 # only report train loss
-                av_writer.update(f"{phase}/Average Loss", loss, torch.sum(norm_mask))
+                av_writer.update(f"{phase}/Average Loss", loss, torch.sum(label_mask))
         # record end of training stats, grouped as Metrics in Tensorboard
         # note non-numeric values (NaN, None, ect.) will cause entry
         # to not be displayed in Tensorboard HPARAMS tab
         # record metrics in last epoch
         if epoch == args.num_epochs - 1:
-            phases = ["Valid", "Test"]
+            phases = ["Test"]
             print('Evaluating on validation and test sets...')
             for phase in phases:
                 if phase == "Valid":
@@ -197,45 +198,36 @@ def train_gcd(args):
                     model.eval()
                     dataloader = test_loader
                 # tensors for caching embeddings and targets
-                epoch_normal_embeds = torch.empty(0, model.out_dim).to(device)
-                epoch_normal_targets = torch.empty(0, dtype=torch.long).to(device)
-                epoch_novel_embeds = torch.empty(0, model.out_dim).to(device)
-                epoch_novel_targets = torch.empty(0, dtype=torch.long).to(device)
+                epoch_embeds = torch.empty(0, model.out_dim).to(device)
+                epoch_targets = torch.empty(0, dtype=torch.long).to(device)
+                epoch_label_mask = torch.empty(0, dtype=torch.bool).to(device)
                 for batch in dataloader:
                     if phase == "Valid":
                         data, targets, uq_idx = batch
-                        norm_mask = torch.isin(targets, normal_classes)
-                    else:  # phase == "Test"
-                        data, targets, uq_idx, norm_mask = batch
+                        # TODO: investigate norm_mask vs label_mask
+                        label_mask = torch.isin(targets, normal_classes)
+                    else:  # Test phase
+                        data, targets, uq_idx, label_mask = batch
                     data = data.to(device)
                     targets = targets.long().to(device)
-                    norm_mask = norm_mask.to(device)
+                    label_mask = label_mask.to(device)
                     embeds = model(data)
-                    epoch_normal_embeds = torch.vstack((epoch_normal_embeds, embeds[norm_mask]))
-                    epoch_normal_targets = torch.hstack((epoch_normal_targets, targets[norm_mask]))
-                    epoch_novel_embeds = torch.vstack((epoch_novel_embeds, embeds[~norm_mask]))
-                    epoch_novel_targets = torch.hstack((epoch_novel_targets, targets[~norm_mask]))
+                    epoch_embeds = torch.vstack((epoch_embeds, embeds))
+                    epoch_targets = torch.hstack((epoch_targets, targets))
+                    epoch_label_mask = torch.hstack((epoch_label_mask, label_mask))
                 # calculate accuracy
-                tags = ["normal", "novel"]
-                for tag in tags:
-                    if tag == "normal":
-                        embeds = epoch_normal_embeds
-                        targets = epoch_normal_targets
-                    else:
-                        embeds = epoch_novel_embeds
-                        targets = epoch_novel_targets
-                    acc_mean, \
-                        ci_low, \
-                        ci_high, \
-                        auroc = evaluate(model, args, train_loader, embeds,
-                                         targets, ss_method=args.ss_method,
-                                         num_bootstrap=args.num_bootstrap)
-                    print(f"Epoch {epoch+1} {phase} {tag} Accuracy: {acc_mean:.3f} ")
+                acc_mean, ci_low, ci_high, auroc = evaluate(model, args, train_loader,
+                                                            epoch_embeds, epoch_targets,
+                                                            epoch_label_mask, args.ss_method,
+                                                            args.num_bootstrap)
+                tag = ['Overall', 'Normal', 'Novel']
+                for i, tag in enumerate(tag):
+                    print(f"{phase} {tag} Accuracy: {acc_mean[i]:.3f} ")
                     metric_dict.update({
-                        f"Metrics/{phase}_{tag}_acc_mean": acc_mean,
-                        f"Metrics/{phase}_{tag}_acc_ci_low": ci_low,
-                        f"Metrics/{phase}_{tag}_acc_ci_high": ci_high,
-                        f"Metrics/{phase}_{tag}_auroc": auroc
+                        f"Metrics/{phase}_{tag}_acc_mean": acc_mean[i],
+                        f"Metrics/{phase}_{tag}_acc_ci_low": ci_low[i],
+                        f"Metrics/{phase}_{tag}_acc_ci_high": ci_high[i],
+                        f"Metrics/{phase}_{tag}_auroc": auroc[i]
                     })
         # output statistics
         av_writer.write(epoch)
