@@ -37,7 +37,7 @@ def evaluate(model, args, epoch_embeds, epoch_targets, label_mask,
             ss_est = SSGMM(test_labeled_embed, test_labeled_targets, test_unlabeled_embed,
                            (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
                 test_unlabeled_embed)
-        y_pred = ss_est.predict(epoch_embeds)
+        y_pred = ss_est.predict(test_unlabeled_embed)
         # calculate overall accuracy
         row_ind, col_ind, weight = stats.assign_clusters(y_pred, epoch_targets)
         acc = stats.cluster_acc(row_ind, col_ind, weight)
