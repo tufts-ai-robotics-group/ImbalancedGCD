@@ -9,10 +9,8 @@ import numpy as np
 import time
 
 
-@torch.no_grad()
-def evaluate(model, args, epoch_embeds, epoch_targets, label_mask,
+def evaluate(args, epoch_embeds, epoch_targets, label_mask,
              ss_method='KMeans', num_bootstrap=1):
-    model.eval()
     epoch_embeds = epoch_embeds.detach().cpu().numpy()
     epoch_targets = epoch_targets.detach().cpu().numpy()
     test_labeled_embed = epoch_embeds[label_mask]
@@ -26,32 +24,31 @@ def evaluate(model, args, epoch_embeds, epoch_targets, label_mask,
     novel_acc = np.zeros(num_bootstrap)
     # record clustering time
     start = time.time()
-    for i in range(num_bootstrap):
-        if ss_method == 'KMeans':
-            # SS KMeans
-            ss_est = SSKMeans(test_labeled_embed, test_labeled_targets,
-                              (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
-                test_unlabeled_embed)
-        elif ss_method == 'GMM':
-            # SS GMM
-            ss_est = SSGMM(test_labeled_embed, test_labeled_targets, test_unlabeled_embed,
-                           (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
-                test_unlabeled_embed)
-        y_pred = ss_est.predict(test_unlabeled_embed)
-        # calculate overall accuracy
-        row_ind, col_ind, weight = stats.assign_clusters(y_pred, epoch_targets)
-        acc = stats.cluster_acc(row_ind, col_ind, weight)
-        overall_acc[i] = acc
-        # calculate normal accuracy
-        row_ind, col_ind, weight = stats.assign_clusters(y_pred[norm_embeds],
-                                                         epoch_targets[norm_embeds])
-        acc = stats.cluster_acc(row_ind, col_ind, weight)
-        normal_acc[i] = acc
-        # calculate novel accuracy
-        row_ind, col_ind, weight = stats.assign_clusters(y_pred[~norm_embeds],
-                                                         epoch_targets[~norm_embeds])
-        acc = stats.cluster_acc(row_ind, col_ind, weight)
-        novel_acc[i] = acc
+    if ss_method == 'KMeans':
+        # SS KMeans
+        ss_est = SSKMeans(test_labeled_embed, test_labeled_targets,
+                          (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
+            test_unlabeled_embed)
+    elif ss_method == 'GMM':
+        # SS GMM
+        ss_est = SSGMM(test_labeled_embed, test_labeled_targets, test_unlabeled_embed,
+                       (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
+            test_unlabeled_embed)
+    y_pred = ss_est.predict(test_unlabeled_embed)
+    # calculate overall accuracy
+    row_ind, col_ind, weight = stats.assign_clusters(y_pred, epoch_targets)
+    acc = stats.cluster_acc(row_ind, col_ind, weight)
+    overall_acc[i] = acc
+    # calculate normal accuracy
+    row_ind, col_ind, weight = stats.assign_clusters(y_pred[norm_embeds],
+                                                     epoch_targets[norm_embeds])
+    acc = stats.cluster_acc(row_ind, col_ind, weight)
+    normal_acc[i] = acc
+    # calculate novel accuracy
+    row_ind, col_ind, weight = stats.assign_clusters(y_pred[~norm_embeds],
+                                                     epoch_targets[~norm_embeds])
+    acc = stats.cluster_acc(row_ind, col_ind, weight)
+    novel_acc[i] = acc
     end = time.time()
     print(f'Average clustering time: {(end - start)/num_bootstrap:.2f} seconds')
 

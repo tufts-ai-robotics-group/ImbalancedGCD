@@ -12,7 +12,7 @@ from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced
 
 from imbalanced_gcd.model import DinoGCD
 from imbalanced_gcd.augmentation import train_twofold_transform, DINOTestTrans
-from imbalanced_gcd.eval.eval import evaluate, cache_test_outputs
+from imbalanced_gcd.test.eval import evaluate, cache_test_outputs
 from imbalanced_gcd.loss import GCDLoss
 from imbalanced_gcd.logger import AverageWriter
 
@@ -44,7 +44,7 @@ def get_args():
                         help="Learning rate for linear classifier {w_y, b_y}")
     parser.add_argument("--num_workers", type=int, default=4)
     # clustering hyperparameters
-    parser.add_argument("--num_bootstrap", type=int, default=1,
+    parser.add_argument("--num_bootstrap", type=int, default=100,
                         help="Number of bootstrap rounds for clustering")
     parser.add_argument("--ss_method", type=str, default="KMeans",
                         choices=["KMeans", "GMM"],
@@ -154,6 +154,7 @@ def train_gcd(args):
     loss_func = GCDLoss(normal_classes, args.sup_weight)
     # init tensorboard, with random comment to stop overlapping runs
     av_writer = AverageWriter(args.label, comment=str(random.randint(0, 9999)))
+    out_dir = Path(av_writer.writer.get_logdir())
     # metric dict for recording hparam metrics
     metric_dict = {}
     # save args
@@ -206,7 +207,6 @@ def train_gcd(args):
                 for batch in dataloader:
                     if phase == "Valid":
                         data, targets, uq_idx = batch
-                        # TODO: investigate norm_mask vs label_mask
                         label_mask = torch.isin(targets, normal_classes)
                     else:  # Test phase
                         data, targets, uq_idx, label_mask = batch
@@ -218,18 +218,16 @@ def train_gcd(args):
                     epoch_targets = torch.hstack((epoch_targets, targets))
                     epoch_label_mask = torch.hstack((epoch_label_mask, label_mask))
                 # calculate accuracy
-                acc_mean, ci_low, ci_high, auroc = evaluate(model, args, epoch_embeds,
-                                                            epoch_targets, epoch_label_mask,
-                                                            args.ss_method, args.num_bootstrap)
-                tag = ['Overall', 'Normal', 'Novel']
-                for i, tag in enumerate(tag):
-                    print(f"{phase} {tag} Accuracy: {acc_mean[i]:.3f} ")
-                    metric_dict.update({
-                        f"Metrics/{phase}_{tag}_acc_mean": acc_mean[i],
-                        f"Metrics/{phase}_{tag}_acc_ci_low": ci_low[i],
-                        f"Metrics/{phase}_{tag}_acc_ci_high": ci_high[i],
-                        f"Metrics/{phase}_{tag}_auroc": auroc[i]
-                    })
+                overall, normal, novel, auroc = evaluate(args, out_dir, epoch_embeds,
+                                                         epoch_targets, epoch_label_mask,
+                                                         args.ss_method, args.num_bootstrap)
+                tag = ['overall', 'normal', 'novel']
+                acc_list = [overall, normal, novel]
+                for i, t in enumerate(tag):
+                    av_writer.update(f"{phase}/Accuracy/{t}", acc_list[i][0])
+                    av_writer.update(f"{phase}/Accuracy/{t}_ci_low", acc_list[i][1])
+                    av_writer.update(f"{phase}/Accuracy/{t}_ci_high", acc_list[i][2])
+                    av_writer.update(f"{phase}/AUROC/{t}", auroc[i])
         # output statistics
         av_writer.write(epoch)
     # record hparams all at once and after all other writer calls
@@ -239,7 +237,6 @@ def train_gcd(args):
         "lr_c": args.lr_c,
         "sup_weight": args.sup_weight,
     }, metric_dict)
-    out_dir = Path(av_writer.writer.get_logdir())
     torch.save(model.state_dict(), out_dir / f"{args.num_epochs}.pt")
     cache_test_outputs(model, normal_classes, test_loader, out_dir)
 
