@@ -21,10 +21,11 @@ def cache_test_outputs(model, normal_classes, test_loader, out_dir):
     out_embeds = torch.empty((0, model.out_dim)).to(device)
     out_targets = torch.tensor([], dtype=int).to(device)
     out_norm_mask = torch.tensor([], dtype=bool).to(device)
+    out_label_mask = torch.tensor([], dtype=bool).to(device)
     for data, targets, uq_idxs, label_mask in test_loader:
-        # get unlabeled data and move to device
-        data = data[~label_mask].to(device)
-        targets = targets[~label_mask].long().to(device)
+        # move to device
+        data = data.to(device)
+        targets = targets.long().to(device)
         # create normal mask
         norm_mask = torch.isin(targets, normal_classes).to(device)
         # forward pass
@@ -34,10 +35,12 @@ def cache_test_outputs(model, normal_classes, test_loader, out_dir):
         out_embeds = torch.vstack((out_embeds, embeds))
         out_targets = torch.hstack((out_targets, targets))
         out_norm_mask = torch.hstack((out_norm_mask, norm_mask))
+        out_label_mask = torch.hstack((out_label_mask, label_mask))
     # write caches
-    torch.save(out_embeds.cpu(), out_dir / "logits.pt")
+    torch.save(out_embeds.cpu(), out_dir / "embeds.pt")
     torch.save(out_targets.cpu(), out_dir / "targets.pt")
     torch.save(out_norm_mask.cpu(), out_dir / "norm_mask.pt")
+    torch.save(out_label_mask.cpu(), out_dir / "label_mask.pt")
 
 
 def evaluate(args, out_dir, epoch_embeds, epoch_targets, label_mask,
@@ -76,7 +79,7 @@ def evaluate(args, out_dir, epoch_embeds, epoch_targets, label_mask,
     plot_con_matrix(cluster_confusion(y_pred, y_true)).savefig(out_dir / "conf_mat.png")
 
     # compute AUROC
-    auroc_list = calc_multiclass_auroc(ss_est, epoch_embeds, epoch_targets)
+    auroc_list = calc_multiclass_auroc(ss_est, epoch_embeds, epoch_targets, args)
 
     return (overall, normal, novel), auroc_list
 
@@ -111,3 +114,45 @@ def calc_multiclass_auroc(ss_est, embeds, targets, args):
     normal = np.mean(auroc_lists[norm_mask])
     novel = np.mean(auroc_lists[~norm_mask])
     return overall, normal, novel
+
+
+def eval_from_cache(args, out_dir):
+    out_dir = Path(out_dir)
+    # load caches
+    embeds = torch.load(out_dir / "embeds.pt")
+    targets = torch.load(out_dir / "targets.pt")
+    norm_mask = torch.load(out_dir / "norm_mask.pt")
+    label_mask = torch.load(out_dir / "label_mask.pt")
+    # get unlabeled normal mask
+    unlabel_norm_mask = torch.logical_and(~label_mask, norm_mask)
+    unlabel_novel_mask = torch.logical_and(~label_mask, ~norm_mask)
+    # apply SS clustering and output results
+    # record clustering time
+    start = time.time()
+    if args.ss_method == 'KMeans':
+        # SS KMeans
+        ss_est = SSKMeans(embeds[label_mask], targets[label_mask],
+                          (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
+            embeds[~label_mask])
+    elif args.ss_method == 'GMM':
+        # SS GMM
+        ss_est = SSGMM(embeds[label_mask], targets[label_mask], embeds[~label_mask],
+                       (args.num_unlabeled_classes + args.num_labeled_classes)).fit(
+            embeds[~label_mask])
+    end = time.time()
+    print(f'Average clustering time: {(end - start):.2f} seconds')
+    y_pred = ss_est.predict(embeds[~label_mask])
+    y_true = targets[~label_mask]
+    # get accuracies
+    overall = bootstrap_metric(y_pred, y_true, cluster_acc, n_bootstraps=args.num_bootstrap)
+    normal = bootstrap_metric(y_pred[norm_mask], y_true[norm_mask],
+                              cluster_acc, args.num_bootstrap)
+    novel = bootstrap_metric(y_pred[~norm_mask], y_true[~norm_mask],
+                             cluster_acc, args.num_bootstrap)
+    plot_gcd_ci(overall, novel, normal).savefig(out_dir / "acc_ci.png")
+    plot_con_matrix(cluster_confusion(y_pred, y_true)).savefig(out_dir / "conf_mat.png")
+
+    # compute AUROC
+    auroc_list = calc_multiclass_auroc(ss_est, epoch_embeds, epoch_targets)
+
+    return (overall, normal, novel), auroc_list

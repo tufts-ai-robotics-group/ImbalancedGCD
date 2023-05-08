@@ -201,9 +201,10 @@ def train_gcd(args):
                     model.eval()
                     dataloader = test_loader
                 # tensors for caching embeddings and targets
-                epoch_embeds = torch.empty(0, model.out_dim).to(device)
-                epoch_targets = torch.empty(0, dtype=torch.long).to(device)
-                epoch_label_mask = torch.empty(0, dtype=torch.bool).to(device)
+                # to decrease memory usage, embeddings and targets are lowered precision
+                epoch_embeds = torch.empty((0, model.out_dim), dtype=torch.float16).to(device)
+                epoch_targets = torch.empty((0,), dtype=torch.int8).to(device)
+                epoch_label_mask = torch.empty((0,), dtype=torch.bool).to(device)
                 for batch in dataloader:
                     if phase == "Valid":
                         data, targets, uq_idx = batch
@@ -214,6 +215,9 @@ def train_gcd(args):
                     targets = targets.long().to(device)
                     label_mask = label_mask.to(device)
                     embeds = model(data)
+                    # lower precision to decrease memory usage
+                    embeds = embeds.to(torch.float16)
+                    targets = targets.to(torch.int8)
                     epoch_embeds = torch.vstack((epoch_embeds, embeds))
                     epoch_targets = torch.hstack((epoch_targets, targets))
                     epoch_label_mask = torch.hstack((epoch_label_mask, label_mask))
