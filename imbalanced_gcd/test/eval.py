@@ -141,18 +141,20 @@ def eval_from_cache(args, out_dir):
             embeds[~label_mask])
     end = time.time()
     print(f'Average clustering time: {(end - start):.2f} seconds')
-    y_pred = ss_est.predict(embeds[~label_mask])
-    y_true = targets[~label_mask]
+    y_pred = ss_est.predict(embeds)
+    y_true = targets
     # get accuracies
-    overall = bootstrap_metric(y_pred, y_true, cluster_acc, n_bootstraps=args.num_bootstrap)
-    normal = bootstrap_metric(y_pred[norm_mask], y_true[norm_mask],
+    overall = bootstrap_metric(y_pred[~label_mask], y_true[~label_mask], 
+                               cluster_acc, n_bootstraps=args.num_bootstrap)
+    normal = bootstrap_metric(y_pred[unlabel_norm_mask], y_true[unlabel_norm_mask],
                               cluster_acc, args.num_bootstrap)
-    novel = bootstrap_metric(y_pred[~norm_mask], y_true[~norm_mask],
+    novel = bootstrap_metric(y_pred[unlabel_novel_mask], y_true[unlabel_novel_mask],
                              cluster_acc, args.num_bootstrap)
     plot_gcd_ci(overall, novel, normal).savefig(out_dir / "acc_ci.png")
     plot_con_matrix(cluster_confusion(y_pred, y_true)).savefig(out_dir / "conf_mat.png")
 
     # compute AUROC
-    auroc_list = calc_multiclass_auroc(ss_est, epoch_embeds, epoch_targets)
+    auroc_list = calc_multiclass_auroc(ss_est, embeds[~label_mask],
+                                       targets[~label_mask], args)
 
     return (overall, normal, novel), auroc_list
