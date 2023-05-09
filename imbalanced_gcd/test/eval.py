@@ -120,10 +120,10 @@ def calc_multiclass_auroc(ss_est, embeds, targets, args):
 def eval_from_cache(args, out_dir):
     out_dir = Path(out_dir)
     # load caches
-    embeds = torch.load(out_dir / "embeds.pt")
-    targets = torch.load(out_dir / "targets.pt")
-    norm_mask = torch.load(out_dir / "norm_mask.pt")
-    label_mask = torch.load(out_dir / "label_mask.pt")
+    embeds = torch.load(out_dir / "embeds.pt").numpy()
+    targets = torch.load(out_dir / "targets.pt").numpy()
+    norm_mask = torch.load(out_dir / "norm_mask.pt").numpy()
+    label_mask = torch.load(out_dir / "label_mask.pt").numpy()
     # get unlabeled normal mask
     unlabel_norm_mask = torch.logical_and(~label_mask, norm_mask)
     unlabel_novel_mask = torch.logical_and(~label_mask, ~norm_mask)
