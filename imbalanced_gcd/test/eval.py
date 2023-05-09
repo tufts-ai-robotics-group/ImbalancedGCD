@@ -26,6 +26,7 @@ def cache_test_outputs(model, normal_classes, test_loader, out_dir):
         # move to device
         data = data.to(device)
         targets = targets.long().to(device)
+        label_mask = label_mask.to(device)
         # create normal mask
         norm_mask = torch.isin(targets, normal_classes).to(device)
         # forward pass
