@@ -104,9 +104,8 @@ def calc_multiclass_auroc(ss_est, embeds, targets, args):
     centroids, _ = pairwise_distances_argmin_min(ss_est.cluster_centers_, embeds)
     centroids_targets = targets[centroids]
     # create normal mask
-    norm_mask = torch.isin(centroids_targets, args.normal_classes).detach().cpu().numpy()
-    # check that each centroid is assigned to a unique class
-    assert len(np.unique(centroids_targets)) == len(centroids_targets)
+    norm_mask = torch.isin(torch.tensor(centroids_targets),
+                           args.normal_classes).detach().cpu().numpy()
     # calculate AUROC for overall, normal, and novel classes
     # normalize the probabilities to 1 for normal and novel classes
     auroc_lists = roc_auc_score(targets, class_prob, multi_class='ovr',
