@@ -12,7 +12,7 @@ from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced
 
 from imbalanced_gcd.model import DinoGCD
 from imbalanced_gcd.augmentation import train_twofold_transform, DINOTestTrans
-from imbalanced_gcd.test.eval import evaluate, cache_test_outputs, eval_from_cache
+from imbalanced_gcd.test.eval import cache_test_outputs, eval_from_cache
 from imbalanced_gcd.loss import GCDLoss
 from imbalanced_gcd.logger import AverageWriter
 

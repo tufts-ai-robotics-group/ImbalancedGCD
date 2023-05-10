@@ -125,8 +125,8 @@ def eval_from_cache(args, out_dir):
     norm_mask = torch.load(out_dir / "norm_mask.pt").numpy()
     label_mask = torch.load(out_dir / "label_mask.pt").numpy()
     # get unlabeled normal mask
-    unlabel_norm_mask = torch.logical_and(~label_mask, norm_mask)
-    unlabel_novel_mask = torch.logical_and(~label_mask, ~norm_mask)
+    unlabel_norm_mask = np.logical_and(~label_mask, norm_mask)
+    unlabel_novel_mask = np.logical_and(~label_mask, ~norm_mask)
     # apply SS clustering and output results
     # record clustering time
     start = time.time()
