@@ -144,7 +144,7 @@ def eval_from_cache(args, out_dir):
     y_pred = ss_est.predict(embeds)
     y_true = targets
     # get accuracies
-    overall = bootstrap_metric(y_pred[~label_mask], y_true[~label_mask], 
+    overall = bootstrap_metric(y_pred[~label_mask], y_true[~label_mask],
                                cluster_acc, n_bootstraps=args.num_bootstrap)
     normal = bootstrap_metric(y_pred[unlabel_norm_mask], y_true[unlabel_norm_mask],
                               cluster_acc, args.num_bootstrap)

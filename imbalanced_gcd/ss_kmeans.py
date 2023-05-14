@@ -231,7 +231,6 @@ class SSKMeans(KMeans):
                 lloyd_iter(
                     X_unlabeled,
                     sample_weight,
-                    x_squared_norms,
                     centers,
                     centers_new,
                     weight_in_clusters,
@@ -288,7 +287,6 @@ class SSKMeans(KMeans):
                 lloyd_iter(
                     X_unlabeled,
                     sample_weight,
-                    x_squared_norms,
                     centers,
                     centers,
                     weight_in_clusters,
