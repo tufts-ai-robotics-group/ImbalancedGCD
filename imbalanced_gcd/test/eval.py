@@ -2,7 +2,7 @@ from pathlib import Path
 
 import torch
 import numpy as np
-from sklearn.metrics import roc_auc_score, pairwise_distances_argmin_min
+from sklearn.metrics import roc_auc_score
 import time
 
 from imbalanced_gcd.test.bootstrap import bootstrap_metric
@@ -100,16 +100,13 @@ def calc_multiclass_auroc(ss_est, embeds, targets, args):
     class_dist = ss_est.transform(embeds)
     # closer class is more likely. use softmax to convert to probabilities
     class_prob = torch.softmax(torch.tensor(-class_dist), dim=1)
-    # get the class label for each centroid
-    centroids, _ = pairwise_distances_argmin_min(ss_est.cluster_centers_, embeds)
-    centroids_targets = targets[centroids]
     # create normal mask
-    norm_mask = torch.isin(torch.tensor(centroids_targets).to(args.device),
+    norm_mask = torch.isin(torch.tensor(targets).to(args.device),
                            args.normal_classes).detach().cpu().numpy()
     # calculate AUROC for overall, normal, and novel classes
     # normalize the probabilities to 1 for normal and novel classes
     auroc_lists = roc_auc_score(targets, class_prob, multi_class='ovr',
-                                average=None, labels=centroids_targets)
+                                average=None)
     overall = np.mean(auroc_lists)
     normal = np.mean(auroc_lists[norm_mask])
     novel = np.mean(auroc_lists[~norm_mask])
