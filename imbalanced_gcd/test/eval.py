@@ -100,16 +100,15 @@ def calc_multiclass_auroc(ss_est, embeds, targets, args):
     class_dist = ss_est.transform(embeds)
     # closer class is more likely. use softmax to convert to probabilities
     class_prob = torch.softmax(torch.tensor(-class_dist), dim=1)
-    # create normal mask
-    norm_mask = torch.isin(torch.tensor(targets).to(args.device),
-                           args.normal_classes).detach().cpu().numpy()
     # calculate AUROC for overall, normal, and novel classes
     # normalize the probabilities to 1 for normal and novel classes
     auroc_lists = roc_auc_score(targets, class_prob, multi_class='ovr',
                                 average=None)
+    print('AUROC shape:', auroc_lists.shape)
     overall = np.mean(auroc_lists)
-    normal = np.mean(auroc_lists[norm_mask])
-    novel = np.mean(auroc_lists[~norm_mask])
+    # apply mask to the vertical axis
+    normal = np.mean(auroc_lists[:args.num_labeled_classes])
+    novel = np.mean(auroc_lists[args.num_labeled_classes:])
     return overall, normal, novel
 
 
