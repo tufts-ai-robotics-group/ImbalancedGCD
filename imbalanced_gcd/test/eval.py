@@ -104,12 +104,11 @@ def calc_multiclass_auroc(ss_est, embeds, targets, args):
     # normalize the probabilities to 1 for normal and novel classes
     auroc_lists = roc_auc_score(targets, class_prob, multi_class='ovr',
                                 average=None)
-    print('AUROC shape:', auroc_lists.shape)
     overall = np.mean(auroc_lists)
     # apply mask to the vertical axis
     normal = np.mean(auroc_lists[:args.num_labeled_classes])
     novel = np.mean(auroc_lists[args.num_labeled_classes:])
-    return overall, normal, novel
+    return [overall, normal, novel]
 
 
 def eval_from_cache(args, out_dir):
@@ -153,4 +152,4 @@ def eval_from_cache(args, out_dir):
     auroc_list = calc_multiclass_auroc(ss_est, embeds[~label_mask],
                                        targets[~label_mask], args)
 
-    return (overall, normal, novel), auroc_list
+    return overall, normal, novel, auroc_list
