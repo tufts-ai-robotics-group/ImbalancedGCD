@@ -249,6 +249,7 @@ def train_gcd(args):
         av_writer.update(f"{phase}/Accuracy/{t}_ci_low", acc_list[i][1])
         av_writer.update(f"{phase}/Accuracy/{t}_ci_high", acc_list[i][2])
         av_writer.update(f"{phase}/AUROC/{t}", auroc[i])
+    av_writer.write(args.num_epochs)
 
 
 if __name__ == "__main__":
