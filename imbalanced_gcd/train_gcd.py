@@ -184,47 +184,6 @@ def train_gcd(args):
                 scheduler.step()
                 # only report train loss
                 av_writer.update(f"{phase}/Average Loss", loss, torch.sum(label_mask))
-        # # record end of training stats, grouped as Metrics in Tensorboard
-        # # note non-numeric values (NaN, None, ect.) will cause entry
-        # # to not be displayed in Tensorboard HPARAMS tab
-        # # record metrics in last epoch
-        # if epoch == args.num_epochs - 1:
-        #     phases = ["Valid", "Test"]
-        #     print('Evaluating on validation and test sets...')
-        #     for phase in phases:
-        #         if phase == "Valid":
-        #             model.eval()
-        #             dataloader = valid_loader
-        #         else:
-        #             model.eval()
-        #             dataloader = test_loader
-        #         epoch_embeds = torch.empty((0, model.out_dim)).to(device)
-        #         epoch_targets = torch.empty((0,)).to(device)
-        #         epoch_label_mask = torch.empty((0,), dtype=torch.bool).to(device)
-        #         for batch in dataloader:
-        #             if phase == "Valid":
-        #                 data, targets, uq_idx = batch
-        #                 label_mask = torch.isin(targets, normal_classes)
-        #             else:  # Test phase
-        #                 data, targets, uq_idx, label_mask = batch
-        #             data = data.to(device)
-        #             targets = targets.long().to(device)
-        #             label_mask = label_mask.to(device)
-        #             embeds = model(data)
-        #             epoch_embeds = torch.vstack((epoch_embeds, embeds))
-        #             epoch_targets = torch.hstack((epoch_targets, targets))
-        #             epoch_label_mask = torch.hstack((epoch_label_mask, label_mask))
-        #         # calculate accuracy
-        #         overall, normal, novel, auroc = evaluate(args, out_dir, epoch_embeds,
-        #                                                  epoch_targets, epoch_label_mask,
-        #                                                  args.ss_method, args.num_bootstrap)
-        #         tag = ['overall', 'normal', 'novel']
-        #         acc_list = [overall, normal, novel]
-        #         for i, t in enumerate(tag):
-        #             av_writer.update(f"{phase}/Accuracy/{t}", acc_list[i][0])
-        #             av_writer.update(f"{phase}/Accuracy/{t}_ci_low", acc_list[i][1])
-        #             av_writer.update(f"{phase}/Accuracy/{t}_ci_high", acc_list[i][2])
-        #             av_writer.update(f"{phase}/AUROC/{t}", auroc[i])
         # output statistics
         av_writer.write(epoch)
     # record hparams all at once and after all other writer calls
@@ -244,6 +203,7 @@ def train_gcd(args):
     overall, normal, novel, auroc = eval_from_cache(args, out_dir)
     tag = ['overall', 'normal', 'novel']
     acc_list = [overall, normal, novel]
+    phase = 'Test'
     for i, t in enumerate(tag):
         av_writer.update(f"{phase}/Accuracy/{t}", acc_list[i][0])
         av_writer.update(f"{phase}/Accuracy/{t}_ci_low", acc_list[i][1])
