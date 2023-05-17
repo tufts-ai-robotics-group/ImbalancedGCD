@@ -1,4 +1,5 @@
 import argparse
+import json
 from pathlib import Path
 import random
 
@@ -10,8 +11,8 @@ from torch.utils.data import DataLoader
 from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced_datasets
 
 from imbalanced_gcd.model import DinoGCD
-from imbalanced_gcd.augmentation import gcd_twofold_transform
-from imbalanced_gcd.eval.eval import calc_accuracy
+from imbalanced_gcd.augmentation import train_twofold_transform, DINOTestTrans
+from imbalanced_gcd.test.eval import cache_test_outputs, eval_from_cache
 from imbalanced_gcd.loss import GCDLoss
 from imbalanced_gcd.logger import AverageWriter
 
@@ -36,12 +37,18 @@ def get_args():
     # training hyperparameters
     parser.add_argument("--num_epochs", type=int, default=100,
                         help="Number of training epochs")
-    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr_e", type=float, default=5e-5,
                         help="Learning rate for embedding v(x)")
     parser.add_argument("--lr_c", type=float, default=1e-2,
                         help="Learning rate for linear classifier {w_y, b_y}")
     parser.add_argument("--num_workers", type=int, default=4)
+    # clustering hyperparameters
+    parser.add_argument("--num_bootstrap", type=int, default=100,
+                        help="Number of bootstrap rounds for clustering")
+    parser.add_argument("--ss_method", type=str, default="KMeans",
+                        choices=["KMeans", "GMM"],
+                        help="Semi supervised clustering method. options: KMeans, GMM")
     # loss hyperparameters
     parser.add_argument("--sup_weight", type=float, default=0.35,
                         help="Supervised loss weight")
@@ -67,20 +74,28 @@ def get_gcd_dataloaders(args):
             args: args updated with num_labeled_classes and num_unlabeled_classes
     """
     args = get_class_splits(args)
+    # TODO: Mention how to get the splits
     if args.imbalance_method is None:
-        train_dataset, valid_dataset, test_dataset = get_datasets(args.dataset_name,
-                                                                  gcd_twofold_transform(
-                                                                      args.image_size),
-                                                                  gcd_twofold_transform(
-                                                                      args.image_size),
-                                                                  args)[:3]
+        train_dataset, valid_dataset, _ = get_datasets(args.dataset_name,
+                                                       train_twofold_transform(
+                                                           args.image_size),
+                                                       DINOTestTrans(args.image_size),
+                                                       args)[:3]
+        test_dataset, _, _ = get_datasets(args.dataset_name,
+                                          DINOTestTrans(args.image_size),
+                                          None,
+                                          args)[:3]
     else:
-        train_dataset, valid_dataset, test_dataset = get_imbalanced_datasets(args.dataset_name,
-                                                                             gcd_twofold_transform(
-                                                                                 args.image_size),
-                                                                             gcd_twofold_transform(
-                                                                                 args.image_size),
-                                                                             args)[:3]
+        train_dataset, valid_dataset, _ = get_imbalanced_datasets(args.dataset_name,
+                                                                  train_twofold_transform(
+                                                                      args.image_size),
+                                                                  DINOTestTrans(args.image_size),
+                                                                  args)[:3]
+        test_dataset, _, _ = get_imbalanced_datasets(args.dataset_name,
+                                                     DINOTestTrans(args.image_size),
+                                                     None,
+                                                     args)[:3]
+
     # add number of labeled and unlabeled classes to args
     args.num_labeled_classes = len(args.train_classes)
     args.num_unlabeled_classes = len(args.unlabeled_classes)
@@ -135,77 +150,42 @@ def train_gcd(args):
             lr_scheduler.CosineAnnealingLR(optim, total_iters - warmup_iters)
         ],
         [warmup_iters])
-    phases = ["Train", "Valid", "Test"]
     # init loss
     loss_func = GCDLoss(normal_classes, args.sup_weight)
     # init tensorboard, with random comment to stop overlapping runs
     av_writer = AverageWriter(args.label, comment=str(random.randint(0, 9999)))
+    out_dir = Path(av_writer.writer.get_logdir())
     # metric dict for recording hparam metrics
     metric_dict = {}
+    # save args
+    keys = ['dataset_name', 'prop_train_label', 'imbalance_method', 'imbalance_ratio',
+            'prop_minority_class', 'seed', 'label', 'num_epocs', 'batch_size', 'lr_e',
+            'lr_c', 'sup_weight']
+    args_dict = {k: v for k, v in vars(args).items() if k in keys}
+    with open(Path(av_writer.writer.get_logdir()) / "args.json", "w") as f:
+        json.dump(args_dict, f)
     # model training
     for epoch in range(args.num_epochs):
-        print("=========================================")
-        print(f"Epoch {epoch + 1}/{args.num_epochs}")
-        # Each epoch has a training, validation, and test phase
-        for phase in phases:
-            if phase == "Train":
-                model.train()
-                dataloader = train_loader
-            elif phase == "Valid":
-                model.eval()
-                dataloader = valid_loader
-            else:
-                model.eval()
-                dataloader = test_loader
-            # vars for tensorboard stats
-            epoch_acc = 0.
-            # tensors for caching embeddings and targets
-            epoch_embeds = torch.empty(0, model.out_dim).to(device)
-            epoch_targets = torch.empty(0, dtype=torch.long).to(device)
-            for batch in dataloader:
-                if phase == "Train":
-                    (t_data, data), targets, uq_idx, label_mask = batch
-                else:
-                    (t_data, data), targets, uq_idx = batch
-                    targets = targets.long().to(device)
-                    label_mask = torch.isin(targets, normal_classes)
-                # forward and loss
-                data = data.to(device)
-                t_data = t_data.to(device)
-                targets = targets.long().to(device)
-                label_mask = label_mask.to(device)
-                optim.zero_grad()
-                with torch.set_grad_enabled(phase == "Train"):
-                    embeds = model(data)
-                    t_embeds = model(t_data)
-                    loss = loss_func(embeds[label_mask], t_embeds[label_mask],
-                                     targets[label_mask])
-                # backward and optimize only if in training phase
-                if phase == "Train":
-                    loss.backward()
-                    optim.step()
-                    scheduler.step()
-                epoch_embeds = torch.vstack((epoch_embeds, embeds[label_mask]))
-                epoch_targets = torch.hstack((epoch_targets, targets[label_mask]))
-                # output statistics
+        # The validation and test dataloaders will be used only at the last epoch
+        phase = 'Train'
+        model.train()
+        for (t_data, data), targets, uq_idx, label_mask in train_loader:
+            data = data.to(device)
+            t_data = t_data.to(device)
+            targets = targets.long().to(device)
+            label_mask = label_mask.to(device)
+            optim.zero_grad()
+            with torch.set_grad_enabled(True):
+                embeds = model(data)
+                t_embeds = model(t_data)
+                loss = loss_func(embeds, t_embeds, targets, label_mask)
+                loss.backward()
+                optim.step()
+                scheduler.step()
+                # only report train loss
                 av_writer.update(f"{phase}/Average Loss", loss, torch.sum(label_mask))
-            print((f"Epoch {epoch + 1}/{args.num_epochs} {phase} Loss: "
-                   f"{av_writer.get_avg(f'{phase}/Average Loss'):.4f}"))
-            if phase != "Train":
-                epoch_acc = calc_accuracy(model, args, train_loader, epoch_embeds, epoch_targets)
-                av_writer.update(f"{phase}/Accuracy", epoch_acc)
-                print((f"Epoch {epoch + 1}/{args.num_epochs} {phase} Accuracy: "
-                       f"{epoch_acc:.4f}"))
-                # record end of training stats, grouped as Metrics in Tensorboard
-                if epoch == args.num_epochs - 1:
-                    # note non-numeric values (NaN, None, ect.) will cause entry
-                    # to not be displayed in Tensorboard HPARAMS tab
-                    metric_dict.update({
-                        f"Metrics/{phase}_loss": av_writer.get_avg(f"{phase}/Average Loss"),
-                        f"Metrics/{phase}_acc": epoch_acc,
-                    })
-            # output statistics
-            av_writer.write(epoch)
+        # output statistics
+        av_writer.write(epoch)
     # record hparams all at once and after all other writer calls
     # to avoid issues with Tensorboard changing output file
     av_writer.writer.add_hparams({
@@ -213,7 +193,23 @@ def train_gcd(args):
         "lr_c": args.lr_c,
         "sup_weight": args.sup_weight,
     }, metric_dict)
-    torch.save(model.state_dict(), Path(av_writer.writer.get_logdir()) / f"{args.num_epochs}.pt")
+    torch.save(model.state_dict(), out_dir / f"{args.num_epochs}.pt")
+    cache_test_outputs(model, normal_classes, test_loader, out_dir)
+    # record end of training stats, grouped as Metrics in Tensorboard
+    # note non-numeric values (NaN, None, ect.) will cause entry
+    # to not be displayed in Tensorboard HPARAMS tab
+    # record metrics in last epoch
+    print('Evaluating on the test set...')
+    overall, normal, novel, auroc = eval_from_cache(args, out_dir)
+    tag = ['overall', 'normal', 'novel']
+    acc_list = [overall, normal, novel]
+    phase = 'Test'
+    for i, t in enumerate(tag):
+        av_writer.update(f"{phase}/Accuracy/{t}", acc_list[i][0])
+        av_writer.update(f"{phase}/Accuracy/{t}_ci_low", acc_list[i][1])
+        av_writer.update(f"{phase}/Accuracy/{t}_ci_high", acc_list[i][2])
+        av_writer.update(f"{phase}/AUROC/{t}", auroc[i])
+    av_writer.write(args.num_epochs)
 
 
 if __name__ == "__main__":

@@ -10,12 +10,10 @@ class GCDLoss(nn.Module):
         self.unsup_temp = .1
         self.sup_temp = .1
 
-    def forward(self, embeds, t_embeds, targets):
+    def forward(self, embeds, t_embeds, targets, norm_mask):
         if targets.size() == torch.Size([0]):
             return torch.tensor(0., requires_grad=True).to(targets.device)
         else:
-            # select labeled images according to the class reordering of base_dataset
-            norm_mask = targets < self.num_norm_targets
             unsup_loss = self.unsup_contrast_loss(embeds, t_embeds)
             sup_loss = self.sup_contrast_loss(embeds[norm_mask], targets[norm_mask])
             return (1 - self.sup_weight) * unsup_loss + self.sup_weight * sup_loss
@@ -27,7 +25,9 @@ class GCDLoss(nn.Module):
         return (embeds @ embeds.T)[~torch.eye(n, dtype=bool)].reshape((n, n - 1))
 
     def unsup_contrast_loss(self, embeds, t_embeds):
-        # dot product of transformed image over dot product over other images
+        if embeds.shape[0] < 2:
+            return torch.tensor(0., requires_grad=True).to(embeds.device)
+        # dot product of t ransformed image over dot product over other images
         nums = torch.sum(embeds * t_embeds, dim=1) / self.unsup_temp
         denom_prods = self.dot_others(embeds) / self.unsup_temp
         denoms = torch.logsumexp(denom_prods, dim=1)
@@ -35,6 +35,8 @@ class GCDLoss(nn.Module):
         return torch.mean(losses)
 
     def sup_contrast_loss(self, embeds, targets):
+        if embeds.shape[0] < 2:
+            return torch.tensor(0., requires_grad=True).to(embeds.device)
         unique_targets = torch.unique(targets)
         losses = torch.Tensor([]).to(embeds.device)
         # denominator calculation is the same regardless of class

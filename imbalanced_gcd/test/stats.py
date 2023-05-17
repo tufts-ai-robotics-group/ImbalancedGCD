@@ -2,20 +2,25 @@ import numpy as np
 import scipy.optimize as optimize
 
 
-def classification_acc(y_pred, y_true):
-    assert y_pred.size == y_true.size
-    num_correct = (y_pred == y_true).astype(np.int64).sum()
-    return float(num_correct) / len(y_pred)
+def cluster_acc(y_pred, y_true):
+    return _cluster_acc(*_assign_clusters(y_pred, y_true))
+
+
+def cluster_confusion(y_pred, y_true):
+    return _cluster_confusion(*_assign_clusters(y_pred, y_true))
+
 
 # cluster functions based on:
 # https://github.com/k-han/AutoNovel/blob/5eda7e45898cf3fbcde4c34b9c14c743082abd94/utils/util.py#L19\
 
 
-def assign_clusters(y_pred, y_true):
+def _assign_clusters(y_pred, y_true):
     """Calculate cluster assignments
+
     Args:
         y_true (np.array): true labels (N,)
         y_pred (np.array): predicted labels (N,)
+
     Returns:
         tuple: np.array of sorted row indices (true) and one of corresponding column indices (pred)
                giving the optimal assignment.
@@ -35,24 +40,28 @@ def assign_clusters(y_pred, y_true):
     return row_ind, col_ind, weight
 
 
-def cluster_acc(row_ind, col_ind, weight):
+def _cluster_acc(row_ind, col_ind, weight):
     """Compute clustering accuracy
+
     Args:
         row_ind (np.array): True class index
         col_ind (np.array): Predicted class index
         weight (np.array): Weight matrix used for assigning clusters
+
     Returns:
         float: accuracy, in [0,1]
     """
     return float(weight[row_ind, col_ind].sum()) / weight.sum()
 
 
-def cluster_confusion(row_ind, col_ind, weight):
+def _cluster_confusion(row_ind, col_ind, weight):
     """Reorder weight matrix to get clustering confusion matrix
+
     Args:
         row_ind (np.array): True class index
         col_ind (np.array): Predicted class index
         weight (np.array): Weight matrix used for assigning clusters
+
     Returns:
         np.array: clustering confusion matrix, with true labels as rows
     """

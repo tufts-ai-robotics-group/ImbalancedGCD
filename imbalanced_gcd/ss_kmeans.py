@@ -62,7 +62,7 @@ class SSKMeans(KMeans):
             accept_large_sparse=False,
         )
 
-        self._check_params(X_unlabeled)
+        # self._check_params(X_unlabeled)
         random_state = check_random_state(self.random_state)
         sample_weight = _check_sample_weight(sample_weight, X_unlabeled, dtype=X_unlabeled.dtype)
         self._n_threads = _openmp_effective_n_threads()
@@ -90,7 +90,7 @@ class SSKMeans(KMeans):
 
         best_inertia, best_labels = None, None
 
-        for i in range(self._n_init):
+        for i in range(self.n_init):
             # Initialize centers
             centers_init = ss_kmeans_plusplus(
                 self.X_labeled, self.y, X_unlabeled, self.n_clusters_unlabeled,
@@ -106,7 +106,7 @@ class SSKMeans(KMeans):
                 centers_init,
                 max_iter=self.max_iter,
                 verbose=self.verbose,
-                tol=self._tol,
+                tol=self.tol,
                 x_squared_norms=x_squared_norms,
                 n_threads=self._n_threads,
             )
@@ -231,7 +231,6 @@ class SSKMeans(KMeans):
                 lloyd_iter(
                     X_unlabeled,
                     sample_weight,
-                    x_squared_norms,
                     centers,
                     centers_new,
                     weight_in_clusters,
@@ -288,7 +287,6 @@ class SSKMeans(KMeans):
                 lloyd_iter(
                     X_unlabeled,
                     sample_weight,
-                    x_squared_norms,
                     centers,
                     centers,
                     weight_in_clusters,
