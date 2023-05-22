@@ -203,6 +203,11 @@ def train_gcd(args):
     overall, normal, novel, auroc = eval_from_cache(args, out_dir)
     tag = ['overall', 'normal', 'novel']
     acc_list = [overall, normal, novel]
+    # print and record metrics
+    print(f"Overall Test Accuracy: {overall[0]:.3f} ({overall[1]:.3f}, {overall[2]:.3f})")
+    print(f"Normal Test Accuracy: {normal[0]:.3f} ({normal[1]:.3f}, {normal[2]:.3f})")
+    print(f"Novel Test Accuracy: {novel[0]:.3f} ({novel[1]:.3f}, {novel[2]:.3f})")
+    print(f"Test AUROC (Overall, Normal, Novel): {auroc[0]:.3f}, {auroc[1]:.3f}, {auroc[2]:.3f}")
     phase = 'Test'
     for i, t in enumerate(tag):
         av_writer.update(f"{phase}/Accuracy/{t}", acc_list[i][0])
