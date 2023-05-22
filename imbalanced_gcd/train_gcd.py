@@ -13,7 +13,7 @@ from gcd_data.get_datasets import get_class_splits, get_datasets, get_imbalanced
 from imbalanced_gcd.model import DinoGCD
 from imbalanced_gcd.augmentation import train_twofold_transform, DINOTestTrans
 from imbalanced_gcd.test.eval import cache_test_outputs, eval_from_cache
-from imbalanced_gcd.loss import GCDLoss
+from imbalanced_gcd.loss import GCDLoss, SupConLoss, info_nce_logits
 from imbalanced_gcd.logger import AverageWriter
 
 
@@ -151,7 +151,7 @@ def train_gcd(args):
         ],
         [warmup_iters])
     # init loss
-    loss_func = GCDLoss(normal_classes, args.sup_weight)
+    # loss_func = GCDLoss(normal_classes, args.sup_weight)
     # init tensorboard, with random comment to stop overlapping runs
     av_writer = AverageWriter(args.label, comment=str(random.randint(0, 9999)))
     out_dir = Path(av_writer.writer.get_logdir())
@@ -178,7 +178,16 @@ def train_gcd(args):
             with torch.set_grad_enabled(True):
                 embeds = model(data)
                 t_embeds = model(t_data)
-                loss = loss_func(embeds, t_embeds, targets, label_mask)
+                # loss = loss_func(embeds, t_embeds, targets, label_mask)
+                # concat embeddings to make a 3D tensor
+                embeds = torch.cat((embeds.unsqueeze(2), t_embeds.unsqueeze(2)), dim=2)
+                # compute loss
+                supcon_loss = SupConLoss()
+                sup_loss = supcon_loss(embeds, targets)
+                contrastive_logits, contrastive_labels = info_nce_logits(embeds, args)
+                contrastive_loss = torch.nn.CrossEntropyLoss()(contrastive_logits,
+                                                               contrastive_labels)
+                loss = args.sup_weight * sup_loss + (1 - args.sup_weight) * contrastive_loss
                 loss.backward()
                 optim.step()
                 scheduler.step()
