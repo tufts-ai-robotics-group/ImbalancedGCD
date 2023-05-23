@@ -155,6 +155,7 @@ def train_gcd(args):
     # init tensorboard, with random comment to stop overlapping runs
     av_writer = AverageWriter(args.label, comment=str(random.randint(0, 9999)))
     out_dir = Path(av_writer.writer.get_logdir())
+    supcon_loss = SupConLoss()
     # metric dict for recording hparam metrics
     metric_dict = {}
     # save args
@@ -180,11 +181,10 @@ def train_gcd(args):
                 t_embeds = model(t_data)
                 # loss = loss_func(embeds, t_embeds, targets, label_mask)
                 # concat embeddings to make a 3D tensor
-                embeds = torch.cat((embeds.unsqueeze(2), t_embeds.unsqueeze(2)), dim=2)
+                cat_embeds = torch.cat((embeds.unsqueeze(2), t_embeds.unsqueeze(2)), dim=2)
                 # compute loss
-                supcon_loss = SupConLoss()
-                sup_loss = supcon_loss(embeds, targets)
-                contrastive_logits, contrastive_labels = info_nce_logits(embeds, args)
+                sup_loss = supcon_loss(cat_embeds, targets)
+                contrastive_logits, contrastive_labels = info_nce_logits(cat_embeds, args)
                 contrastive_loss = torch.nn.CrossEntropyLoss()(contrastive_logits,
                                                                contrastive_labels)
                 loss = args.sup_weight * sup_loss + (1 - args.sup_weight) * contrastive_loss
