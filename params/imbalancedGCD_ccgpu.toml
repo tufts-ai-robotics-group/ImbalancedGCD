@@ -1,0 +1,8 @@
+launch_cmd = "cd /cluster/home/rxu04/ImbalancedGCD; nvidia-smi; pipenv run python imbalanced_gcd/train_gcd.py"
+
+[sbatch]
+-p = "ccgpu"
+-t = "0-10:0:0"
+--gres = "gpu:a100:1"
+-c = 8
+-o = "slurm_out/%A_%a.out"
